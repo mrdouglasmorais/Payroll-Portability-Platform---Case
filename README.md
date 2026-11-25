@@ -4,6 +4,13 @@ Simulated payroll discount portability platform with Java/Spring Boot, React/Typ
 
 See [requirements](docs/requirements-traceability.md), [architecture](docs/architecture/overview.md), [contracts](contracts/openapi/) and [AI harness](ai/README.md).
 
+## Milestones
+
+- **M0** Engineering foundation (skills, ADRs, specs, OpenAPI)
+- **M1** Executable bootstrap (`docker compose up --build`)
+- **M2** Domain & persistence (aggregates, Flyway V2, JDBC, invariant tests)
+- **M3+** Central simulator, portability core, async/audit, web, quality
+
 ## Quick start (M1)
 
 ```bash
