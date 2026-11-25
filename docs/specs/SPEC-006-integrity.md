@@ -11,4 +11,4 @@ Sign request and response using HMAC-SHA256; canonical UTF-8 format documented b
 Reject altered body, invalid signature, expired timestamp and replay; fresh retry nonce preserves key.
 
 ## Evidence
-Pending implementation and tests.
+Central simulator (M3): `HmacCanonicalTest`, `CentralHmacIntegrationTest` (invalid signature, replay). Canonical format: `docs/architecture/hmac-canonical.md`.

@@ -26,3 +26,7 @@ management:
 
 app:
   hmac-secret: ${CENTRAL_HMAC_SECRET:local-test-hmac-secret}
+  hmac-key-id: ${CENTRAL_HMAC_KEY_ID:local-test-key}
+  hmac-max-skew: PT5M
+  sim:
+    confirm-delay: ${CENTRAL_CONFIRM_DELAY:PT2S}

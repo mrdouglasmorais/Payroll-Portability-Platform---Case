@@ -9,7 +9,8 @@ See [requirements](docs/requirements-traceability.md), [architecture](docs/archi
 - **M0** Engineering foundation (skills, ADRs, specs, OpenAPI)
 - **M1** Executable bootstrap (`docker compose up --build`)
 - **M2** Domain & persistence (aggregates, Flyway V2, JDBC, invariant tests)
-- **M3+** Central simulator, portability core, async/audit, web, quality
+- **M3** Central simulator (HMAC, protocol, idempotency, fault injection)
+- **M4+** Portability core HTTP, async/audit, web, quality
 
 ## Quick start (M1)
 
