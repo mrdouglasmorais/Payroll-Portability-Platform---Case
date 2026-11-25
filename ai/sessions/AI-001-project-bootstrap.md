@@ -53,7 +53,10 @@ $ curl -sS http://localhost:5173/api/v1/status
 {"status":"UP","milestone":"M1","service":"portability-api"}
 ```
 
-- Validation: PASS (compose stack healthy; web unit test + build PASS)
+- Validation: PASS (compose stack healthy; web unit test + build PASS; k6 M1 load PASS)
+- k6 evidence (`tests/performance/k6-m1-bootstrap.js` via `grafana/k6:0.54.0`):
+  - 10_076 HTTP reqs, `http_req_failed=0%`, checks `100%`
+  - p95: api_health 12.17ms, api_status 6.19ms, central_health 10.54ms, web 3.61ms
 - Backend `./mvnw verify` on host: NOT_RUN (host Java is 21; images use Temurin 25)
 - Human review / decision: pending
 - Commit reference: pending (user-executed commits)
