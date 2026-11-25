@@ -11,4 +11,4 @@ Validate beneficiary, consent, distinct eligible installments and destination; r
 Concurrent competing operations cannot reserve same installment; invalid selection rejected.
 
 ## Evidence
-Pending implementation and tests.
+M2 domain create + M4 HTTP/worker: `CreatePortabilityServiceTest`, `PortabilityApiWebTest`, `CentralPortabilityWorkerTest`.

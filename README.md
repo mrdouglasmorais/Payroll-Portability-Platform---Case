@@ -10,7 +10,8 @@ See [requirements](docs/requirements-traceability.md), [architecture](docs/archi
 - **M1** Executable bootstrap (`docker compose up --build`)
 - **M2** Domain & persistence (aggregates, Flyway V2, JDBC, invariant tests)
 - **M3** Central simulator (HMAC, protocol, idempotency, fault injection)
-- **M4+** Portability core HTTP, async/audit, web, quality
+- **M4** Portability core (HTTP API, Central HMAC client, persistent worker)
+- **M5+** Web console, quality hardening, load evidence
 
 ## Quick start (M1)
 

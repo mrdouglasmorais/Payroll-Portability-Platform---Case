@@ -11,4 +11,4 @@ Submit to Central outside DB transaction; persist protocol; poll status; 204/Ret
 Lost response recovered with stable key; restart resumes; rejection preserves prior account.
 
 ## Evidence
-Pending implementation and tests.
+M4 worker SUBMIT→POLL→finalize: `CentralPortabilityWorkerTest` (confirm, reject, 503 without business rejection).

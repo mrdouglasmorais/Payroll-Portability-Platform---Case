@@ -197,6 +197,84 @@ public class JdbcPortabilityOperationRepository implements PortabilityOperationR
     return ops.stream().findFirst();
   }
 
+  @Override
+  public void saveOutcome(PortabilityOperation operation) {
+    jdbc.update(
+        """
+        UPDATE portability_operations
+        SET business_status = ?, rejection_reason = ?, central_protocol = ?, updated_at = ?
+        WHERE id = ?
+        """,
+        operation.businessStatus().name(),
+        operation.rejectionReason(),
+        operation.centralProtocol(),
+        Timestamp.from(operation.updatedAt()),
+        operation.id());
+    for (OperationEvent event : operation.pullNewEvents()) {
+      jdbc.update(
+          """
+          INSERT INTO operation_events (
+            id, operation_id, sequence_no, event_type, description,
+            correlation_id, payload_redacted, occurred_at
+          ) VALUES (?, ?, ?, ?, ?, ?, '{}'::jsonb, ?)
+          """,
+          event.id(),
+          event.operationId(),
+          event.sequenceNo(),
+          event.eventType(),
+          event.description(),
+          event.correlationId(),
+          Timestamp.from(event.occurredAt()));
+    }
+  }
+
+  @Override
+  public void consumeReservation(UUID operationId, String externalInstallmentId, Instant now) {
+    jdbc.update(
+        """
+        UPDATE installment_reservations
+        SET status = 'CONSUMED', released_at = ?
+        WHERE operation_id = ? AND external_installment_id = ? AND status = 'ACTIVE'
+        """,
+        Timestamp.from(now),
+        operationId,
+        externalInstallmentId);
+  }
+
+  @Override
+  public void releaseReservation(UUID operationId, String externalInstallmentId, Instant now) {
+    jdbc.update(
+        """
+        UPDATE installment_reservations
+        SET status = 'RELEASED', released_at = ?
+        WHERE operation_id = ? AND external_installment_id = ? AND status = 'ACTIVE'
+        """,
+        Timestamp.from(now),
+        operationId,
+        externalInstallmentId);
+  }
+
+  @Override
+  public List<OperationEvent> listEvents(UUID operationId) {
+    return jdbc.query(
+        """
+        SELECT id, operation_id, sequence_no, event_type, description, correlation_id, occurred_at
+        FROM operation_events
+        WHERE operation_id = ?
+        ORDER BY sequence_no
+        """,
+        (rs, rowNum) ->
+            new OperationEvent(
+                UUID.fromString(rs.getString("id")),
+                UUID.fromString(rs.getString("operation_id")),
+                rs.getInt("sequence_no"),
+                rs.getString("event_type"),
+                rs.getString("description"),
+                rs.getString("correlation_id"),
+                rs.getTimestamp("occurred_at").toInstant()),
+        operationId);
+  }
+
   private int nextSequence(UUID operationId) {
     Integer max =
         jdbc.queryForObject(

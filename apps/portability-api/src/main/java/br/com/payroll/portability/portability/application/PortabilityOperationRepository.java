@@ -1,6 +1,9 @@
 package br.com.payroll.portability.portability.application;
 
+import br.com.payroll.portability.portability.domain.OperationEvent;
 import br.com.payroll.portability.portability.domain.PortabilityOperation;
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -17,4 +20,12 @@ public interface PortabilityOperationRepository {
   Optional<String> findRequestHashByIdempotency(String scope, String key);
 
   Optional<PortabilityOperation> findById(UUID operationId);
+
+  void saveOutcome(PortabilityOperation operation);
+
+  void consumeReservation(UUID operationId, String externalInstallmentId, Instant now);
+
+  void releaseReservation(UUID operationId, String externalInstallmentId, Instant now);
+
+  List<OperationEvent> listEvents(UUID operationId);
 }

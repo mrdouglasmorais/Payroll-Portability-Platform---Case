@@ -28,3 +28,11 @@ app:
   central:
     base-url: ${CENTRAL_BASE_URL:http://localhost:8081}
     hmac-secret: ${CENTRAL_HMAC_SECRET:local-test-hmac-secret}
+    hmac-key-id: ${CENTRAL_HMAC_KEY_ID:local-test-key}
+    connect-timeout: PT2S
+    read-timeout: PT5S
+    max-attempts: 8
+    poll-delay: PT1S
+    lease-duration: PT30S
+    worker-enabled: true
+    worker-tick: PT1S

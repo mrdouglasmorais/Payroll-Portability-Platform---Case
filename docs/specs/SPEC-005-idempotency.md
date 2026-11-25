@@ -11,4 +11,4 @@ Both services persist scoped key, canonical semantic fingerprint and operation/p
 Concurrent equal requests produce one operation and one protocol; different keys cannot double-port same installment.
 
 ## Evidence
-Pending implementation and tests.
+Platform: `CreatePortabilityServiceTest`, `PortabilityApiWebTest` (409 on payload mismatch). Central: M3 `CentralHmacIntegrationTest`.

@@ -11,4 +11,4 @@ Bound retries with persisted next_run_at, backoff and jitter; honor Retry-After;
 Timeout, 503, malformed response, invalid signature and worker crash are distinguishable; reservations stay held for ambiguous outcome.
 
 ## Evidence
-Pending implementation and tests.
+M4: transient Central failure leaves `PENDENTE` and holds reservation (`CentralPortabilityWorkerTest.transientFailureDoesNotRejectBusiness`).
