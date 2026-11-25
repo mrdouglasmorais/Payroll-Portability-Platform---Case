@@ -1,0 +1,212 @@
+openapi: 3.1.0
+info:
+  title: Portability API
+  version: 0.1.0
+  description: Proposed contract. HMAC signature in headers rather than body for Central;
+    see SPEC-006. Error schemas and signing details to finalize before implementation.
+paths:
+  /api/v1/autorizacoes:
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                beneficiarioId: &id001
+                  type: string
+                  minLength: 1
+                convenioId: *id001
+              required:
+              - beneficiarioId
+              - convenioId
+              additionalProperties: false
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  autorizacaoId: *id001
+                required:
+                - autorizacaoId
+                additionalProperties: false
+        '400':
+          description: Invalid request
+        '403':
+          description: Not authorized
+        '409':
+          description: Conflict
+        '503':
+          description: Unavailable
+  /api/v1/beneficiarios/{beneficiarioId}/agenda:
+    get:
+      parameters:
+      - in: path
+        name: beneficiarioId
+        required: true
+        schema: *id001
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    parcelaId: *id001
+                    convenioId: *id001
+                    valor:
+                      type: number
+                      multipleOf: 0.01
+                    dataDesconto:
+                      type: string
+                      format: date
+                    status: *id001
+                  required:
+                  - parcelaId
+                  - convenioId
+                  - valor
+                  - dataDesconto
+                  - status
+                  additionalProperties: false
+        '403':
+          description: Not authorized
+        '404':
+          description: Not found
+        '503':
+          description: Unavailable
+  /api/v1/operacoes-portabilidade:
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                beneficiarioId: *id001
+                parcelas:
+                  type: array
+                  items: *id001
+                  minItems: 1
+                  uniqueItems: true
+                credorCessionario: *id001
+                contaRecebimento:
+                  type: object
+                  properties:
+                    banco: *id001
+                    agencia: *id001
+                    conta: *id001
+                  required:
+                  - banco
+                  - agencia
+                  - conta
+                  additionalProperties: false
+              required:
+              - beneficiarioId
+              - parcelas
+              - credorCessionario
+              - contaRecebimento
+              additionalProperties: false
+      responses:
+        '202':
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  operationId: *id001
+                required:
+                - operationId
+                additionalProperties: false
+        '400':
+          description: Invalid request
+        '403':
+          description: Not authorized
+        '409':
+          description: Conflict
+        '503':
+          description: Unavailable
+      parameters:
+      - in: header
+        name: Idempotency-Key
+        required: true
+        schema: *id001
+  /api/v1/operacoes-portabilidade/{operationId}:
+    get:
+      parameters:
+      - in: path
+        name: operationId
+        required: true
+        schema: *id001
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum:
+                    - PENDENTE
+                    - CONFIRMADA
+                    - REJEITADA
+                  motivoRejeicao:
+                    type:
+                    - string
+                    - 'null'
+                required:
+                - status
+                - motivoRejeicao
+                additionalProperties: false
+        '403':
+          description: Not authorized
+        '404':
+          description: Not found
+        '503':
+          description: Unavailable
+  /api/v1/operacoes-portabilidade/{operationId}/eventos:
+    get:
+      parameters:
+      - in: path
+        name: operationId
+        required: true
+        schema: *id001
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    eventType: *id001
+                    sequence:
+                      type: integer
+                    occurredAt:
+                      type: string
+                      format: date-time
+                    description: *id001
+                  required:
+                  - eventType
+                  - sequence
+                  - occurredAt
+                  - description
+                  additionalProperties: false
+        '403':
+          description: Not authorized
+        '404':
+          description: Not found
+        '503':
+          description: Unavailable

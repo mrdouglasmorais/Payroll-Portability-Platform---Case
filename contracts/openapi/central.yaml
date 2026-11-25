@@ -1,0 +1,472 @@
+openapi: 3.1.0
+info:
+  title: Central Simulator
+  version: 0.1.0
+  description: Proposed contract. HMAC signature in headers rather than body for Central;
+    see SPEC-006. Error schemas and signing details to finalize before implementation.
+paths:
+  /autorizacoes:
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                beneficiarioId: &id001
+                  type: string
+                  minLength: 1
+                convenioId: *id001
+              required:
+              - beneficiarioId
+              - convenioId
+              additionalProperties: false
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  autorizacaoId: *id001
+                required:
+                - autorizacaoId
+                additionalProperties: false
+          headers:
+            X-Signature:
+              schema: *id001
+            X-Timestamp:
+              schema: *id001
+            X-Nonce:
+              schema: *id001
+            X-Key-Id:
+              schema: *id001
+            X-Correlation-Id:
+              schema: *id001
+        '400':
+          description: Invalid request
+          headers:
+            X-Signature:
+              schema: *id001
+            X-Timestamp:
+              schema: *id001
+            X-Nonce:
+              schema: *id001
+            X-Key-Id:
+              schema: *id001
+            X-Correlation-Id:
+              schema: *id001
+        '403':
+          description: Not authorized
+          headers:
+            X-Signature:
+              schema: *id001
+            X-Timestamp:
+              schema: *id001
+            X-Nonce:
+              schema: *id001
+            X-Key-Id:
+              schema: *id001
+            X-Correlation-Id:
+              schema: *id001
+        '409':
+          description: Conflict
+          headers:
+            X-Signature:
+              schema: *id001
+            X-Timestamp:
+              schema: *id001
+            X-Nonce:
+              schema: *id001
+            X-Key-Id:
+              schema: *id001
+            X-Correlation-Id:
+              schema: *id001
+        '503':
+          description: Unavailable
+          headers:
+            X-Signature:
+              schema: *id001
+            X-Timestamp:
+              schema: *id001
+            X-Nonce:
+              schema: *id001
+            X-Key-Id:
+              schema: *id001
+            X-Correlation-Id:
+              schema: *id001
+      parameters:
+      - in: header
+        name: X-Signature
+        required: true
+        schema: *id001
+      - in: header
+        name: X-Timestamp
+        required: true
+        schema: *id001
+      - in: header
+        name: X-Nonce
+        required: true
+        schema: *id001
+      - in: header
+        name: X-Key-Id
+        required: true
+        schema: *id001
+      - in: header
+        name: X-Correlation-Id
+        required: true
+        schema: *id001
+  /beneficiarios/{beneficiarioId}/agenda:
+    get:
+      parameters:
+      - in: path
+        name: beneficiarioId
+        required: true
+        schema: *id001
+      - in: header
+        name: X-Signature
+        required: true
+        schema: *id001
+      - in: header
+        name: X-Timestamp
+        required: true
+        schema: *id001
+      - in: header
+        name: X-Nonce
+        required: true
+        schema: *id001
+      - in: header
+        name: X-Key-Id
+        required: true
+        schema: *id001
+      - in: header
+        name: X-Correlation-Id
+        required: true
+        schema: *id001
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    parcelaId: *id001
+                    convenioId: *id001
+                    valor:
+                      type: number
+                      multipleOf: 0.01
+                    dataDesconto:
+                      type: string
+                      format: date
+                    status: *id001
+                  required:
+                  - parcelaId
+                  - convenioId
+                  - valor
+                  - dataDesconto
+                  - status
+                  additionalProperties: false
+          headers:
+            X-Signature:
+              schema: *id001
+            X-Timestamp:
+              schema: *id001
+            X-Nonce:
+              schema: *id001
+            X-Key-Id:
+              schema: *id001
+            X-Correlation-Id:
+              schema: *id001
+        '403':
+          description: Not authorized
+          headers:
+            X-Signature:
+              schema: *id001
+            X-Timestamp:
+              schema: *id001
+            X-Nonce:
+              schema: *id001
+            X-Key-Id:
+              schema: *id001
+            X-Correlation-Id:
+              schema: *id001
+        '404':
+          description: Not found
+          headers:
+            X-Signature:
+              schema: *id001
+            X-Timestamp:
+              schema: *id001
+            X-Nonce:
+              schema: *id001
+            X-Key-Id:
+              schema: *id001
+            X-Correlation-Id:
+              schema: *id001
+        '503':
+          description: Unavailable
+          headers:
+            X-Signature:
+              schema: *id001
+            X-Timestamp:
+              schema: *id001
+            X-Nonce:
+              schema: *id001
+            X-Key-Id:
+              schema: *id001
+            X-Correlation-Id:
+              schema: *id001
+  /operacoes-portabilidade:
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                beneficiarioId: *id001
+                parcelas:
+                  type: array
+                  items: *id001
+                  minItems: 1
+                  uniqueItems: true
+                credorCessionario: *id001
+                contaRecebimento:
+                  type: object
+                  properties:
+                    banco: *id001
+                    agencia: *id001
+                    conta: *id001
+                  required:
+                  - banco
+                  - agencia
+                  - conta
+                  additionalProperties: false
+              required:
+              - beneficiarioId
+              - parcelas
+              - credorCessionario
+              - contaRecebimento
+              additionalProperties: false
+      responses:
+        '202':
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  protocolo: *id001
+                required:
+                - protocolo
+                additionalProperties: false
+          headers:
+            X-Signature:
+              schema: *id001
+            X-Timestamp:
+              schema: *id001
+            X-Nonce:
+              schema: *id001
+            X-Key-Id:
+              schema: *id001
+            X-Correlation-Id:
+              schema: *id001
+        '400':
+          description: Invalid request
+          headers:
+            X-Signature:
+              schema: *id001
+            X-Timestamp:
+              schema: *id001
+            X-Nonce:
+              schema: *id001
+            X-Key-Id:
+              schema: *id001
+            X-Correlation-Id:
+              schema: *id001
+        '403':
+          description: Not authorized
+          headers:
+            X-Signature:
+              schema: *id001
+            X-Timestamp:
+              schema: *id001
+            X-Nonce:
+              schema: *id001
+            X-Key-Id:
+              schema: *id001
+            X-Correlation-Id:
+              schema: *id001
+        '409':
+          description: Conflict
+          headers:
+            X-Signature:
+              schema: *id001
+            X-Timestamp:
+              schema: *id001
+            X-Nonce:
+              schema: *id001
+            X-Key-Id:
+              schema: *id001
+            X-Correlation-Id:
+              schema: *id001
+        '503':
+          description: Unavailable
+          headers:
+            X-Signature:
+              schema: *id001
+            X-Timestamp:
+              schema: *id001
+            X-Nonce:
+              schema: *id001
+            X-Key-Id:
+              schema: *id001
+            X-Correlation-Id:
+              schema: *id001
+      parameters:
+      - in: header
+        name: Idempotency-Key
+        required: true
+        schema: *id001
+      - in: header
+        name: X-Signature
+        required: true
+        schema: *id001
+      - in: header
+        name: X-Timestamp
+        required: true
+        schema: *id001
+      - in: header
+        name: X-Nonce
+        required: true
+        schema: *id001
+      - in: header
+        name: X-Key-Id
+        required: true
+        schema: *id001
+      - in: header
+        name: X-Correlation-Id
+        required: true
+        schema: *id001
+  /operacoes-portabilidade/{protocolo}:
+    get:
+      parameters:
+      - in: path
+        name: protocolo
+        required: true
+        schema: *id001
+      - in: header
+        name: X-Signature
+        required: true
+        schema: *id001
+      - in: header
+        name: X-Timestamp
+        required: true
+        schema: *id001
+      - in: header
+        name: X-Nonce
+        required: true
+        schema: *id001
+      - in: header
+        name: X-Key-Id
+        required: true
+        schema: *id001
+      - in: header
+        name: X-Correlation-Id
+        required: true
+        schema: *id001
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum:
+                    - PENDENTE
+                    - CONFIRMADA
+                    - REJEITADA
+                  motivoRejeicao:
+                    type:
+                    - string
+                    - 'null'
+                required:
+                - status
+                - motivoRejeicao
+                additionalProperties: false
+          headers:
+            X-Signature:
+              schema: *id001
+            X-Timestamp:
+              schema: *id001
+            X-Nonce:
+              schema: *id001
+            X-Key-Id:
+              schema: *id001
+            X-Correlation-Id:
+              schema: *id001
+        '403':
+          description: Not authorized
+          headers:
+            X-Signature:
+              schema: *id001
+            X-Timestamp:
+              schema: *id001
+            X-Nonce:
+              schema: *id001
+            X-Key-Id:
+              schema: *id001
+            X-Correlation-Id:
+              schema: *id001
+        '404':
+          description: Not found
+          headers:
+            X-Signature:
+              schema: *id001
+            X-Timestamp:
+              schema: *id001
+            X-Nonce:
+              schema: *id001
+            X-Key-Id:
+              schema: *id001
+            X-Correlation-Id:
+              schema: *id001
+        '503':
+          description: Unavailable
+          headers:
+            X-Signature:
+              schema: *id001
+            X-Timestamp:
+              schema: *id001
+            X-Nonce:
+              schema: *id001
+            X-Key-Id:
+              schema: *id001
+            X-Correlation-Id:
+              schema: *id001
+        '204':
+          description: Pending
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                minimum: 0
+            X-Signature:
+              schema: *id001
+            X-Timestamp:
+              schema: *id001
+            X-Nonce:
+              schema: *id001
+            X-Key-Id:
+              schema: *id001
+            X-Correlation-Id:
+              schema: *id001

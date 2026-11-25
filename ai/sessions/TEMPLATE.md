@@ -1,0 +1,13 @@
+# Session ID / date
+- Task / spec / ADR:
+- Tool and model (if known):
+- Skills loaded:
+- Actual prompt (redacted):
+- Constraints:
+- Changes / files:
+- Suggestions rejected and why:
+- Commands and actual outputs:
+- Validation: NOT_RUN / PASS / FAIL
+- Human review / decision: pending
+- Commit reference:
+- Remaining risks:
