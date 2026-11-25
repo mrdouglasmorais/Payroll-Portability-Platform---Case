@@ -1,0 +1,98 @@
+services:
+  platform-db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: portability
+      POSTGRES_USER: portability
+      POSTGRES_PASSWORD: portability
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U portability -d portability"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - platform-db-data:/var/lib/postgresql/data
+
+  central-db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: central
+      POSTGRES_USER: central
+      POSTGRES_PASSWORD: central
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U central -d central"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - central-db-data:/var/lib/postgresql/data
+
+  central-simulator:
+    build:
+      context: ./apps/central-simulator
+    environment:
+      SERVER_PORT: 8080
+      SPRING_DATASOURCE_URL: jdbc:postgresql://central-db:5432/central
+      SPRING_DATASOURCE_USERNAME: central
+      SPRING_DATASOURCE_PASSWORD: central
+      CENTRAL_HMAC_SECRET: ${CENTRAL_HMAC_SECRET:-local-test-hmac-secret}
+    ports:
+      - "8081:8080"
+    depends_on:
+      central-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/actuator/health | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+
+  portability-api:
+    build:
+      context: ./apps/portability-api
+    environment:
+      SERVER_PORT: 8080
+      SPRING_DATASOURCE_URL: jdbc:postgresql://platform-db:5432/portability
+      SPRING_DATASOURCE_USERNAME: portability
+      SPRING_DATASOURCE_PASSWORD: portability
+      CENTRAL_BASE_URL: http://central-simulator:8080
+      CENTRAL_HMAC_SECRET: ${CENTRAL_HMAC_SECRET:-local-test-hmac-secret}
+    ports:
+      - "8080:8080"
+    depends_on:
+      platform-db:
+        condition: service_healthy
+      central-simulator:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/actuator/health | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+
+  web:
+    build:
+      context: ./apps/web
+      args:
+        VITE_API_BASE_URL: ""
+    ports:
+      - "5173:80"
+    depends_on:
+      portability-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:80/ | grep -qi html"]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+      start_period: 10s
+
+volumes:
+  platform-db-data:
+  central-db-data:
