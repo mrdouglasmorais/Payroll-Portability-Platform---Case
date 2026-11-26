@@ -11,4 +11,4 @@ Operator can register opt-in, query agenda, select installments, enter destinati
 Accessible end-to-end success/rejection/failure flows; no duplicate on repeated submit; polling stops terminal.
 
 ## Evidence
-Pending implementation and tests.
+M5: `PortabilityWizard.test.tsx` (idempotent resubmit, polling stops on terminal), `mask.test.ts`, `pnpm build`.

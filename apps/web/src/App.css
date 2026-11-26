@@ -34,9 +34,9 @@ body {
 }
 
 .shell {
-  max-width: 720px;
+  max-width: 760px;
   margin: 0 auto;
-  padding: 4rem 1.5rem 3rem;
+  padding: 3.5rem 1.5rem 3rem;
 }
 
 .brand .eyebrow {
@@ -58,51 +58,58 @@ body {
 .lede {
   margin: 0.85rem 0 0;
   color: var(--muted);
-  max-width: 36rem;
+  max-width: 38rem;
 }
 
-.status-panel {
-  margin-top: 2.5rem;
+.status-panel,
+.wizard .panel {
+  margin-top: 2rem;
   padding: 1.5rem;
   background: color-mix(in srgb, var(--surface) 88%, white);
   border: 1px solid var(--line);
 }
 
-.status-panel h2 {
+.status-panel h2,
+.wizard h3,
+.wizard h4 {
   margin: 0 0 1rem;
   font-size: 1rem;
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
-.status-panel dl {
+.status-panel dl,
+.review {
   margin: 0;
   display: grid;
   gap: 0.75rem;
 }
 
-.status-panel div {
+.status-panel div,
+.review div {
   display: grid;
-  grid-template-columns: 8rem 1fr;
+  grid-template-columns: 9rem 1fr;
   gap: 0.75rem;
   align-items: baseline;
 }
 
-.status-panel dt {
+.status-panel dt,
+.review dt {
   color: var(--muted);
   font-size: 0.9rem;
 }
 
-.status-panel dd {
+.status-panel dd,
+.review dd {
   margin: 0;
   font-weight: 600;
 }
 
-.status-panel .ok {
+.ok {
   color: var(--accent);
 }
 
-.status-panel .error {
+.error {
   color: var(--danger);
   margin: 0;
 }
@@ -110,4 +117,182 @@ body {
 code {
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-size: 0.9em;
+}
+
+.wizard-head {
+  margin-top: 2.5rem;
+}
+
+.wizard-head h2 {
+  margin: 0 0 0.75rem;
+  font-family: "IBM Plex Serif", Georgia, serif;
+  font-size: 1.45rem;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.steps li {
+  padding: 0.25rem 0.65rem;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.steps li.current {
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.steps li.done {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--accent) 12%, white);
+}
+
+.banner {
+  margin: 1rem 0 0;
+  padding: 0.85rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--line));
+  background: color-mix(in srgb, var(--danger) 8%, white);
+  color: var(--danger);
+}
+
+.hint {
+  margin: 0 0 1rem;
+  color: var(--muted);
+}
+
+.panel label {
+  display: grid;
+  gap: 0.35rem;
+  margin-bottom: 0.9rem;
+  font-size: 0.92rem;
+}
+
+.panel input[type='text'],
+.panel input:not([type]),
+.panel input[type='checkbox'] {
+  accent-color: var(--accent);
+}
+
+.panel input:not([type='checkbox']) {
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--line);
+  background: white;
+  font: inherit;
+  color: var(--ink);
+}
+
+.panel input:focus-visible,
+.panel button:focus-visible,
+.panel input[type='checkbox']:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.grid-3 {
+  display: grid;
+  gap: 0.75rem;
+}
+
+@media (min-width: 640px) {
+  .grid-3 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.panel button {
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: white;
+  font: inherit;
+  font-weight: 600;
+  padding: 0.55rem 1rem;
+  cursor: pointer;
+}
+
+.panel button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.panel button.ghost {
+  background: transparent;
+  color: var(--ink);
+  border-color: var(--line);
+}
+
+.agenda-list,
+.timeline {
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.check-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.75rem;
+  align-items: start;
+  margin: 0;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--line);
+  background: white;
+}
+
+.meta {
+  display: block;
+  color: var(--muted);
+  font-weight: 400;
+  font-size: 0.9rem;
+}
+
+.status-line {
+  margin: 0 0 1rem;
+}
+
+.status-line strong[data-status='CONFIRMADA'] {
+  color: var(--accent);
+}
+
+.status-line strong[data-status='REJEITADA'] {
+  color: var(--danger);
+}
+
+.polling {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.timeline li {
+  display: grid;
+  grid-template-columns: 2rem 1fr;
+  gap: 0.75rem;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.timeline .seq {
+  color: var(--muted);
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
 }

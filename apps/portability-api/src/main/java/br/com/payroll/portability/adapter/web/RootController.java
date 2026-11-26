@@ -11,7 +11,7 @@ public class RootController {
   public Map<String, String> status() {
     return Map.of(
         "service", "portability-api",
-        "milestone", "M1",
+        "milestone", "M5",
         "status", "UP");
   }
 }

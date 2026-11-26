@@ -4,14 +4,14 @@ import { describe, expect, it, vi } from 'vitest'
 import App from './App'
 
 describe('App', () => {
-  it('renders the operational console brand', () => {
+  it('renders the operational console brand and wizard', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
         ok: true,
         json: async () => ({
           service: 'portability-api',
-          milestone: 'M1',
+          milestone: 'M5',
           status: 'UP',
         }),
       }),
@@ -29,5 +29,6 @@ describe('App', () => {
 
     expect(screen.getByText('Payroll Portability')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Operational console' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Portability flow' })).toBeInTheDocument()
   })
 })

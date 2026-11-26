@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { PortabilityWizard } from './features/portability/PortabilityWizard'
 import './App.css'
 
 type ApiStatus = {
@@ -30,7 +31,8 @@ function App() {
         <p className="eyebrow">Payroll Portability</p>
         <h1>Operational console</h1>
         <p className="lede">
-          M1 bootstrap surface — health of the platform API before domain flows land.
+          Operator flow: authorize, select installments, submit once, and follow the local
+          timeline until the Central outcome is verified.
         </p>
       </header>
 
@@ -60,6 +62,8 @@ function App() {
           </dl>
         )}
       </section>
+
+      <PortabilityWizard />
     </main>
   )
 }
