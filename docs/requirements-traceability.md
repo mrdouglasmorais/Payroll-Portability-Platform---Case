@@ -1,6 +1,6 @@
 # Requirements traceability
 
-Source: candidate technical challenge, pp. 1–4. IDs assigned locally. All implementation evidence pending.
+Source: candidate technical challenge, pp. 1–4. IDs assigned locally. Architectural decisions guided by the Miro [system design](architecture/system-design.md) board.
 
 | Requirement | Specification | Verification |
 |---|---|---|

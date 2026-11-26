@@ -2,7 +2,10 @@
 
 Simulated payroll discount portability platform with Java/Spring Boot, React/TypeScript, PostgreSQL and an independent Central simulator.
 
-See [requirements](docs/requirements-traceability.md), [architecture](docs/architecture/overview.md), [contracts](contracts/openapi/) and [AI harness](ai/README.md).
+See [requirements](docs/requirements-traceability.md), [system design (balizador Miro)](docs/architecture/system-design.md), [architecture overview](docs/architecture/overview.md), [contracts](contracts/openapi/) and [AI harness](ai/README.md).
+
+Board Miro (fonte das decisões de arquitetura): https://miro.com/app/board/uXjVEJ1cEDw=/?share_link_id=843643210573
+
 
 ## Milestones
 
@@ -11,7 +14,8 @@ See [requirements](docs/requirements-traceability.md), [architecture](docs/archi
 - **M2** Domain & persistence (aggregates, Flyway V2, JDBC, invariant tests)
 - **M3** Central simulator (HMAC, protocol, idempotency, fault injection)
 - **M4** Portability core (HTTP API, Central HMAC client, persistent worker)
-- **M5+** Web console, quality hardening, load evidence
+- **M5** Web console (operator flow, TanStack Query, accessible timeline)
+- **M6+** Quality hardening, dual-stack E2E, load evidence
 
 ## Quick start (M1)
 

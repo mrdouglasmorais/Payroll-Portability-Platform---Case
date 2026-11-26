@@ -1,5 +1,7 @@
 # Proposed architecture
 
+**Documento balizador:** [system-design.md](system-design.md) (board Miro de system design). Este overview é o resumo executável no repositório; decisões de arquitetura devem rastrear o Miro.
+
 ```mermaid
 flowchart LR
   U[Operator] --> W[React web]
@@ -10,6 +12,7 @@ flowchart LR
   A -->|Signed consent and agenda requests| C
   C --> E[(Central PostgreSQL)]
 ```
+
 
 Modules: consent, schedule, portability, settlement, audit; integration and shared are supporting packages. Package by feature, domain/application/adapters inside each feature only as needed. No direct cross-module persistence access. Settlement can initially remain within portability if no independent lifecycle exists.
 
