@@ -1,0 +1,72 @@
+:root {
+  /* Cielo institutional — sampled from cielo.com.br/inteligencia-de-dados */
+  color-scheme: light;
+
+  --cielo-blue: #00aeef;
+  --cielo-blue-bright: #00c4f3;
+  --cielo-action: #0774e7;
+  --cielo-action-hover: #0666cc;
+  --cielo-navy: #115297;
+  --cielo-mist: #def5ff;
+  --cielo-mist-strong: #abf4ff;
+  --cielo-ink: #2f363e;
+  --cielo-ink-deep: #231f20;
+  --cielo-slate: #5a646e;
+  --cielo-slate-ui: #5c6a7b;
+  --cielo-border: #c5ced7;
+  --cielo-surface-muted: #eaeef3;
+
+  --color-bg: #ffffff;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f2f4f8;
+  --color-border: #c5ced7;
+  --color-border-hover: #8a99a8;
+  --color-text: #2f363e;
+  --color-text-secondary: #5c6a7b;
+  --color-text-muted: #5a646e;
+  --color-primary: var(--cielo-blue);
+  --color-primary-hover: #0095d0;
+  --color-primary-strong: var(--cielo-action);
+  --color-primary-strong-hover: var(--cielo-action-hover);
+  --color-success: #1f7a3a;
+  --color-warning: #ea7f06;
+  --color-danger: #a11f14;
+
+  --font-sans: Montserrat, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+
+  /* Type scale aligned to Cielo site (16 base, Montserrat weights 400/500/600/700) */
+  --text-title: 1.75rem; /* 28px — section hero in console */
+  --text-section: 1.5rem; /* 24px */
+  --text-card: 1rem; /* 16px / 600–700 */
+  --text-body: 0.875rem; /* 14px — Cielo body/nav */
+  --text-label: 0.875rem;
+  --text-meta: 0.75rem; /* 12px */
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 40px;
+  --space-8: 48px;
+
+  --radius-sm: 8px;
+  --radius-md: 16px;
+  --radius-lg: 20px;
+  --radius-pill: 1000px;
+
+  --shadow-sm: 0 1px 4px rgb(26 30 35 / 16%);
+  --shadow-md: 0 8px 24px rgb(26 30 35 / 10%);
+
+  --motion-fast: 140ms ease;
+  --motion-base: 150ms ease;
+  --motion-state: 180ms ease;
+  --motion-enter: 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  --motion-pulse: 2s ease-out infinite;
+
+  --header-height: 64px;
+  --content-max: 1160px;
+  --btn-height: 44px;
+}

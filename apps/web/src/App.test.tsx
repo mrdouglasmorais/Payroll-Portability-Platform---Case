@@ -4,14 +4,14 @@ import { describe, expect, it, vi } from 'vitest'
 import App from './App'
 
 describe('App', () => {
-  it('renderiza a marca do console operacional e o assistente', () => {
+  it('renderiza o shell do console e o fluxo de portabilidade', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
         ok: true,
         json: async () => ({
           service: 'portability-api',
-          milestone: 'M5',
+          milestone: 'M10',
           status: 'UP',
         }),
       }),
@@ -27,8 +27,11 @@ describe('App', () => {
       </QueryClientProvider>,
     )
 
-    expect(screen.getByText('Portabilidade de Folha')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Console operacional' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Fluxo de portabilidade' })).toBeInTheDocument()
+    expect(screen.getAllByAltText('Cielo').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('Portabilidade de Folha').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getByText(/Case Cielo/)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Nova operação' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Autorização do beneficiário' })).toBeInTheDocument()
+    expect(screen.getByAltText('Inteligência de Mercado Cielo')).toBeInTheDocument()
   })
 })
