@@ -12,9 +12,13 @@ const apiBase = import.meta.env.VITE_API_BASE_URL ?? ''
 async function parseError(response: Response): Promise<ApiError> {
   let message = `Falha na requisição (${response.status})`
   try {
-    const body = (await response.json()) as { error?: string }
-    if (body.error) {
+    const body = (await response.json()) as { detail?: string; error?: string; title?: string }
+    if (body.detail) {
+      message = body.detail
+    } else if (body.error) {
       message = body.error
+    } else if (body.title) {
+      message = body.title
     }
   } catch {
     // keep default

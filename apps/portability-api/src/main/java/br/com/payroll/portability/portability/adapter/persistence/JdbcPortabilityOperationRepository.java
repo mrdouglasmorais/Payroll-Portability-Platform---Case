@@ -6,6 +6,7 @@ import br.com.payroll.portability.portability.domain.OperationEvent;
 import br.com.payroll.portability.portability.domain.PortabilityOperation;
 import br.com.payroll.portability.portability.domain.ReceivingAccount;
 import br.com.payroll.portability.portability.domain.TechnicalJobStatus;
+import br.com.payroll.portability.shared.domain.InstallmentConflictException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.LinkedHashSet;
@@ -153,7 +154,7 @@ public class JdbcPortabilityOperationRepository implements PortabilityOperationR
             operation.id(),
             Timestamp.from(now));
       } catch (DataIntegrityViolationException ex) {
-        throw new IllegalStateException("Parcela já reservada: " + externalId, ex);
+        throw InstallmentConflictException.alreadyReserved(externalId);
       }
     }
 

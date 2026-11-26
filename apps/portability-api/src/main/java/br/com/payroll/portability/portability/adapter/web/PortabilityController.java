@@ -1,6 +1,11 @@
 package br.com.payroll.portability.portability.adapter.web;
 
 import br.com.payroll.portability.beneficiary.application.BeneficiaryRepository;
+import br.com.payroll.portability.portability.adapter.web.dto.CreatePortabilityRequest;
+import br.com.payroll.portability.portability.adapter.web.dto.CreatePortabilityResponse;
+import br.com.payroll.portability.portability.adapter.web.dto.OperationEventResponse;
+import br.com.payroll.portability.portability.adapter.web.dto.OperationStatusResponse;
+import br.com.payroll.portability.portability.adapter.web.dto.ProcessingStatusResponse;
 import br.com.payroll.portability.portability.application.CreatePortabilityService;
 import br.com.payroll.portability.portability.application.PortabilityOperationRepository;
 import br.com.payroll.portability.portability.application.ProcessingJob;
@@ -11,15 +16,16 @@ import br.com.payroll.portability.portability.domain.PortabilityOperation;
 import br.com.payroll.portability.portability.domain.ReceivingAccount;
 import br.com.payroll.portability.portability.domain.TechnicalJobStatus;
 import br.com.payroll.portability.shared.domain.DomainException;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -29,6 +35,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 @RestController
+@Validated
 public class PortabilityController {
 
   private final CreatePortabilityService createService;
@@ -48,125 +55,89 @@ public class PortabilityController {
   }
 
   @PostMapping("/api/v1/operacoes-portabilidade")
-  public ResponseEntity<Map<String, String>> create(
-      @RequestBody Map<String, Object> body,
-      @RequestHeader("Idempotency-Key") String idempotencyKey,
-      @RequestHeader(value = "X-Correlation-Id", required = false) String correlationId) {
-    if (idempotencyKey == null || idempotencyKey.isBlank()) {
-      throw new DomainException("Cabeçalho Idempotency-Key é obrigatório");
+  public ResponseEntity<CreatePortabilityResponse> create(
+      @Valid @RequestBody CreatePortabilityRequest body,
+      @RequestHeader("Idempotency-Key") @NotBlank @Size(max = 128) String idempotencyKey,
+      @RequestHeader(value = "X-Correlation-Id", required = false) @Size(max = 128)
+          String correlationId) {
+    Set<String> parcelaSet = new LinkedHashSet<>(body.parcelas());
+    if (parcelaSet.size() != body.parcelas().size()) {
+      throw new DomainException("Parcelas duplicadas na requisição");
     }
-    if (idempotencyKey.length() > 128) {
-      throw new DomainException("Idempotency-Key excede o tamanho máximo");
-    }
-    if (correlationId != null && correlationId.length() > 128) {
-      throw new DomainException("X-Correlation-Id excede o tamanho máximo");
-    }
-    String beneficiaryExternalRef = bounded(string(body, "beneficiarioId"), "beneficiarioId", 64);
+
     UUID beneficiaryId =
         beneficiaryRepository
-            .findIdByExternalRef(beneficiaryExternalRef)
+            .findIdByExternalRef(body.beneficiarioId())
             .orElseThrow(
                 () ->
                     new ResponseStatusException(
                         HttpStatus.BAD_REQUEST, "Beneficiário desconhecido"));
 
-    @SuppressWarnings("unchecked")
-    List<String> parcelas =
-        body.get("parcelas") instanceof List<?> list
-            ? list.stream().map(Object::toString).toList()
-            : List.of();
-    if (parcelas.isEmpty()) {
-      throw new DomainException("Informe ao menos uma parcela");
-    }
-    if (parcelas.size() > 50) {
-      throw new DomainException("Limite de 50 parcelas por operação");
-    }
-    Set<String> parcelaSet = new LinkedHashSet<>();
-    for (String parcela : parcelas) {
-      if (parcela == null || parcela.isBlank()) {
-        throw new DomainException("Identificador de parcela inválido");
-      }
-      if (parcela.length() > 64) {
-        throw new DomainException("Identificador de parcela excede o tamanho máximo");
-      }
-      parcelaSet.add(parcela);
-    }
-    if (parcelaSet.size() != parcelas.size()) {
-      throw new DomainException("Parcelas duplicadas na requisição");
-    }
-
-    String creditor = bounded(string(body, "credorCessionario"), "credorCessionario", 128);
-    @SuppressWarnings("unchecked")
-    Map<String, Object> accountMap =
-        body.get("contaRecebimento") instanceof Map<?, ?> map
-            ? (Map<String, Object>) map
-            : Map.of();
     ReceivingAccount account =
         new ReceivingAccount(
-            bounded(string(accountMap, "banco"), "banco", 8),
-            bounded(string(accountMap, "agencia"), "agencia", 16),
-            bounded(string(accountMap, "conta"), "conta", 32));
+            body.contaRecebimento().banco(),
+            body.contaRecebimento().agencia(),
+            body.contaRecebimento().conta());
 
     String corr =
         correlationId == null || correlationId.isBlank()
             ? UUID.randomUUID().toString()
             : correlationId;
-    String hash = RequestHash.forPortability(beneficiaryExternalRef, parcelaSet, creditor, account);
+    String hash =
+        RequestHash.forPortability(
+            body.beneficiarioId(), parcelaSet, body.credorCessionario(), account);
 
     UUID operationId =
         createService.create(
             new PortabilityCommand(
-                beneficiaryId, parcelaSet, creditor, account, idempotencyKey, corr, hash));
+                beneficiaryId,
+                parcelaSet,
+                body.credorCessionario(),
+                account,
+                idempotencyKey,
+                corr,
+                hash));
 
-    return ResponseEntity.accepted().body(Map.of("operationId", operationId.toString()));
+    return ResponseEntity.accepted()
+        .body(new CreatePortabilityResponse(operationId.toString()));
   }
 
   @GetMapping("/api/v1/operacoes-portabilidade/{operationId}")
-  public Map<String, Object> status(@PathVariable UUID operationId) {
+  public OperationStatusResponse status(@PathVariable UUID operationId) {
     PortabilityOperation operation =
         operationRepository
             .findById(operationId)
             .orElseThrow(
                 () -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Não encontrado"));
-    Map<String, Object> body = new LinkedHashMap<>();
-    body.put("operationId", operation.id().toString());
-    body.put("status", operation.businessStatus().name());
-    body.put("motivoRejeicao", operation.rejectionReason());
-    body.put("correlationId", operation.correlationId());
-    body.put("centralProtocol", operation.centralProtocol());
-    body.put("processing", processingView(operationId));
-    return body;
+    return new OperationStatusResponse(
+        operation.id().toString(),
+        operation.businessStatus().name(),
+        operation.rejectionReason(),
+        operation.correlationId(),
+        operation.centralProtocol(),
+        processingView(operationId));
   }
 
   @GetMapping("/api/v1/operacoes-portabilidade/{operationId}/eventos")
-  public List<Map<String, Object>> events(@PathVariable UUID operationId) {
+  public List<OperationEventResponse> events(@PathVariable UUID operationId) {
     if (operationRepository.findById(operationId).isEmpty()) {
       throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Não encontrado");
     }
-    List<Map<String, Object>> events = new ArrayList<>();
-    operationRepository
-        .listEvents(operationId)
-        .forEach(
-            event -> {
-              Map<String, Object> row = new LinkedHashMap<>();
-              row.put("eventType", event.eventType());
-              row.put("sequence", event.sequenceNo());
-              row.put("occurredAt", event.occurredAt().toString());
-              row.put("description", event.description());
-              events.add(row);
-            });
-    return events;
+    return operationRepository.listEvents(operationId).stream()
+        .map(
+            event ->
+                new OperationEventResponse(
+                    event.eventType(),
+                    event.sequenceNo(),
+                    event.occurredAt().toString(),
+                    event.description()))
+        .toList();
   }
 
-  private Map<String, Object> processingView(UUID operationId) {
-    Map<String, Object> processing = new LinkedHashMap<>();
+  private ProcessingStatusResponse processingView(UUID operationId) {
     ProcessingJob job = jobRepository.findByOperationId(operationId).orElse(null);
     if (job == null) {
-      processing.put("status", "UNKNOWN");
-      processing.put("attemptCount", 0);
-      processing.put("errorCode", null);
-      processing.put("requiresAction", false);
-      return processing;
+      return new ProcessingStatusResponse("UNKNOWN", 0, null, false);
     }
     TechnicalJobStatus tech = job.technicalStatus();
     String status;
@@ -186,25 +157,7 @@ public class PortabilityController {
     } else {
       status = "PENDING";
     }
-    processing.put("status", status);
-    processing.put("attemptCount", job.attemptCount());
-    processing.put("errorCode", job.lastErrorCode());
-    processing.put("requiresAction", requiresAction);
-    return processing;
-  }
-
-  private static String string(Map<String, ?> body, String field) {
-    Object value = body.get(field);
-    if (value == null || value.toString().isBlank()) {
-      throw new DomainException(field + " é obrigatório");
-    }
-    return value.toString();
-  }
-
-  private static String bounded(String value, String field, int max) {
-    if (value.length() > max) {
-      throw new DomainException(field + " excede o tamanho máximo");
-    }
-    return value;
+    return new ProcessingStatusResponse(
+        status, job.attemptCount(), job.lastErrorCode(), requiresAction);
   }
 }

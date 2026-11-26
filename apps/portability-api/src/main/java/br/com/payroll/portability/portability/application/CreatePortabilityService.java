@@ -7,6 +7,7 @@ import br.com.payroll.portability.schedule.application.InstallmentRepository;
 import br.com.payroll.portability.schedule.domain.InstallmentSnapshot;
 import br.com.payroll.portability.schedule.domain.InstallmentStatus;
 import br.com.payroll.portability.shared.domain.DomainException;
+import br.com.payroll.portability.shared.domain.InstallmentConflictException;
 import br.com.payroll.portability.shared.observability.PortabilityTelemetry;
 import java.time.Clock;
 import java.time.Instant;
@@ -122,15 +123,14 @@ public class CreatePortabilityService {
     }
   }
 
-  private static IllegalStateException unavailableInstallment(
+  private static InstallmentConflictException unavailableInstallment(
       String externalId, InstallmentStatus status) {
     if (status == InstallmentStatus.PORTED) {
-      return new IllegalStateException("Parcela já portada: " + externalId);
+      return InstallmentConflictException.alreadyPorted(externalId);
     }
     if (status == InstallmentStatus.RESERVED) {
-      return new IllegalStateException("Parcela já reservada: " + externalId);
+      return InstallmentConflictException.alreadyReserved(externalId);
     }
-    return new IllegalStateException(
-        "Parcela indisponível (" + status + "): " + externalId);
+    return InstallmentConflictException.unavailable(externalId);
   }
 }

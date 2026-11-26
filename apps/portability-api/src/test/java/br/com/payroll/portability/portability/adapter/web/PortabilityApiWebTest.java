@@ -221,6 +221,8 @@ class PortabilityApiWebTest {
                 .header("Idempotency-Key", "web-idem-ported")
                 .content(body))
         .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.containsString("já portada")))
+        .andExpect(jsonPath("$.reason").value("ALREADY_PORTED"))
         .andExpect(jsonPath("$.error").value(org.hamcrest.Matchers.containsString("já portada")));
   }
 
