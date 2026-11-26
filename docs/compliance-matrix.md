@@ -20,4 +20,5 @@ Evidence session: `ai/sessions/AI-012-release-readiness.md` (HEAD base `7e71031`
 | RNF06 | PDF p.2 | Manutenibilidade | Obrigatório | AGENTS | ADR-002 | Feature packages | ArchUnit | AI-012 | PASS | — |
 | RNF07 | PDF p.2 | Testes críticos | Obrigatório | ADR-013 | ADR-013 | JUnit/Vitest/E2E/Playwright | AI-012 suite | AI-012 | PASS | CI remota do SHA final NOT_RUN até push |
 | RNF08 | PDF p.2–3 | Uso de IA | Obrigatório | ADR-015 | ADR-015 | sessions AI-000…012 | session files | AI-012 | PARTIAL | Human review pending |
-| RNF09 | PDF p.4 | README + reproduzível | Obrigatório | — | ADR-001 | Compose + README | compose up + scripts | AI-012 | PARTIAL | origin/main ainda 1+ commits atrás até push |
+| RNF09 | PDF p.4 | README + reproduzível | Obrigatório | — | ADR-001 | Compose + README | compose up + scripts | AI-013 manual | PASS | Confirm Actions on delivery SHA after push |
+| Obs | ADR-014 | Métricas + correlation | Recomendado | ADR-014 | ADR-014 | Prometheus + MDC filters | curl prometheus + headers | AI-013 | PASS | OTel collectors optional |

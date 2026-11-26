@@ -81,7 +81,7 @@ Note: first Playwright attempt failed because it ran concurrently with `timeout-
 
 ## Validation
 
-- Validation: PASS (local gates above); CI remote NOT_RUN; human review pending
-- Human review / decision: pending
-- Commit reference: pending (user-executed)
-- Remaining risks: push required for Actions green; axe P2; process-kill P2; no operator auth (lab)
+- Validation: PASS (local gates above); published as `3c82d9` then CI Playwright failed (locator); follow-ups in AI-013
+- Human review / decision: performed (candidate)
+- Commit reference: `3c82d9` (later superseded by M10 working tree)
+- Remaining risks: see AI-013 / release-readiness-report

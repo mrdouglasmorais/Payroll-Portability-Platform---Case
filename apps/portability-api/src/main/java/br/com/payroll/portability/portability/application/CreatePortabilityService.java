@@ -7,6 +7,7 @@ import br.com.payroll.portability.schedule.application.InstallmentRepository;
 import br.com.payroll.portability.schedule.domain.InstallmentSnapshot;
 import br.com.payroll.portability.schedule.domain.InstallmentStatus;
 import br.com.payroll.portability.shared.domain.DomainException;
+import br.com.payroll.portability.shared.observability.PortabilityTelemetry;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -26,16 +27,19 @@ public class CreatePortabilityService {
   private final InstallmentRepository installmentRepository;
   private final PortabilityOperationRepository operationRepository;
   private final Clock clock;
+  private final PortabilityTelemetry telemetry;
 
   public CreatePortabilityService(
       ConsentRepository consentRepository,
       InstallmentRepository installmentRepository,
       PortabilityOperationRepository operationRepository,
-      Clock clock) {
+      Clock clock,
+      PortabilityTelemetry telemetry) {
     this.consentRepository = consentRepository;
     this.installmentRepository = installmentRepository;
     this.operationRepository = operationRepository;
     this.clock = clock;
+    this.telemetry = telemetry;
   }
 
   @Transactional
@@ -102,6 +106,7 @@ public class CreatePortabilityService {
       operationRepository.bindIdempotencyOperation(
           IDEMPOTENCY_SCOPE, command.idempotencyKey(), operation.id());
       claimOwned = false;
+      telemetry.operationCreated();
       return operation.id();
     } finally {
       if (claimOwned) {

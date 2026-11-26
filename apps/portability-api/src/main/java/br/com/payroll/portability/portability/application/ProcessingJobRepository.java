@@ -33,4 +33,9 @@ public interface ProcessingJobRepository {
   Optional<ProcessingJob> findByOperationId(UUID operationId);
 
   Optional<String> findIdempotencyKey(UUID operationId);
+
+  /** Open = PENDING + RUNNING + FAILED (still retryable). Low-cardinality gauge source. */
+  long countOpenJobs();
+
+  long countExhaustedJobs();
 }

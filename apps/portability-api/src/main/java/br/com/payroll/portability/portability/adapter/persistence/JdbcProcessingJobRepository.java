@@ -253,4 +253,28 @@ public class JdbcProcessingJobRepository implements ProcessingJobRepository {
             operationId);
     return list.stream().findFirst();
   }
+
+  @Override
+  public long countOpenJobs() {
+    Long count =
+        jdbc.queryForObject(
+            """
+            SELECT COUNT(*) FROM processing_jobs
+            WHERE technical_status IN ('PENDING', 'RUNNING', 'FAILED')
+            """,
+            Long.class);
+    return count == null ? 0L : count;
+  }
+
+  @Override
+  public long countExhaustedJobs() {
+    Long count =
+        jdbc.queryForObject(
+            """
+            SELECT COUNT(*) FROM processing_jobs
+            WHERE technical_status = 'EXHAUSTED'
+            """,
+            Long.class);
+    return count == null ? 0L : count;
+  }
 }

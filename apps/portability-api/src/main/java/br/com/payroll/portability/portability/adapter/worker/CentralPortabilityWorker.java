@@ -13,6 +13,7 @@ import br.com.payroll.portability.portability.application.ProcessingJob;
 import br.com.payroll.portability.portability.application.ProcessingJobRepository;
 import br.com.payroll.portability.portability.application.StaleFenceException;
 import br.com.payroll.portability.portability.domain.PortabilityOperation;
+import br.com.payroll.portability.shared.observability.PortabilityTelemetry;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -38,6 +39,7 @@ public class CentralPortabilityWorker {
   private final CentralGateway centralGateway;
   private final CentralProperties properties;
   private final Clock clock;
+  private final PortabilityTelemetry telemetry;
   private final String workerId = "worker-" + UUID.randomUUID();
 
   public CentralPortabilityWorker(
@@ -47,7 +49,8 @@ public class CentralPortabilityWorker {
       FinalizeOperationService finalizeOperationService,
       CentralGateway centralGateway,
       CentralProperties properties,
-      Clock clock) {
+      Clock clock,
+      PortabilityTelemetry telemetry) {
     this.jobRepository = jobRepository;
     this.operationRepository = operationRepository;
     this.beneficiaryRepository = beneficiaryRepository;
@@ -55,6 +58,7 @@ public class CentralPortabilityWorker {
     this.centralGateway = centralGateway;
     this.properties = properties;
     this.clock = clock;
+    this.telemetry = telemetry;
   }
 
   @Scheduled(fixedDelayString = "${app.central.worker-tick:PT1S}")
@@ -66,7 +70,11 @@ public class CentralPortabilityWorker {
     Instant leaseUntil = now.plus(properties.getLeaseDuration());
     jobRepository
         .claimNext(workerId, now, leaseUntil)
-        .ifPresent(this::processClaimed);
+        .ifPresent(
+            job -> {
+              telemetry.jobClaimed();
+              processClaimed(job);
+            });
   }
 
   void processClaimed(ProcessingJob job) {
@@ -83,14 +91,17 @@ public class CentralPortabilityWorker {
             null);
       }
     } catch (StaleFenceException ex) {
+      telemetry.staleFence();
       log.info("Stale fence on job {}; skipping financial mutation", job.id());
     } catch (CentralException ex) {
       if (ex.isPermanentFailure()) {
+        telemetry.centralPermanentFailure();
         failPermanent(
             job,
             "Erro permanente da Central: " + ex.getMessage(),
             IntegrationFailureCode.PERMANENT_CENTRAL_ERROR);
       } else {
+        telemetry.centralTransientFailure();
         failTransient(
             job,
             sanitizeError(ex.getMessage()),
@@ -228,6 +239,7 @@ public class CentralPortabilityWorker {
     if (attempts >= properties.getMaxAttempts()) {
       jobRepository.markExhausted(
           job.id(), job.fenceToken(), sanitized, code.name(), now);
+      telemetry.jobExhausted();
       return;
     }
     Duration backoff =
@@ -252,6 +264,7 @@ public class CentralPortabilityWorker {
     finalizeOperationService.recordIntegrationFailureWithFence(
         job.operationId(), job.id(), job.fenceToken(), owner(job), sanitized);
     jobRepository.markExhausted(job.id(), job.fenceToken(), sanitized, code.name(), now);
+    telemetry.jobExhausted();
   }
 
   private static String owner(ProcessingJob job) {

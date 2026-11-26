@@ -1,18 +1,21 @@
 # ADR-014: observability
 
-Status: Proposed
+Status: Accepted
 
 ## Context
-Technical challenge requires a maintainable, auditable simulated financial workflow.
+Operators need correlation, job backlog visibility and integration failure class without a heavyweight telemetry platform.
 
 ## Decision
-Structured logs and metrics first; optional tracing stack.
+Actuator health + Micrometer Prometheus registry + MDC correlation IDs + low-cardinality portability counters/gauges. Full OTel collectors remain optional.
 
 ## Alternative
-Full platform from day one.
+Ship OpenTelemetry + Grafana stack in Compose from day one.
 
 ## Consequences
-Focused diagnosis; richer tracing later.
+Useful local diagnosis (`/actuator/prometheus`); no high-cardinality labels; tracing deferred.
 
 ## Revisit
-Reassess if measured constraints or business requirements invalidate this decision.
+Add tracing exporters when multi-service latency diagnosis requires it.
+
+## Evidence
+See `docs/architecture/observability.md`.

@@ -20,5 +20,7 @@ $ cd apps/web && pnpm test                # 6 passed
 
 ## NOT_RUN
 - Executable admin reconciliation CLI (still poll/fence path only)
-- axe / keyboard a11y CI
 - Independent reproduction of agenda∩portability race (fixed by static analysis + conditional UPDATE)
+
+## Later
+axe/keyboard covered in AI-013 Playwright suite. Human review performed (candidate).

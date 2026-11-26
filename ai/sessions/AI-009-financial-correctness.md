@@ -37,4 +37,4 @@ $ cd apps/web && pnpm test
 - Real process-kill after Central accept (M10)
 
 ## Human review
-Pending for financial invariant + Central schema changes.
+Performed (candidate) for financial invariant + Central schema changes.

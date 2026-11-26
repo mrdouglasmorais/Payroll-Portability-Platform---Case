@@ -5,6 +5,7 @@ import br.com.payroll.portability.portability.domain.PortabilityOperation;
 import br.com.payroll.portability.portability.domain.ReceivingAccount;
 import br.com.payroll.portability.schedule.application.InstallmentRepository;
 import br.com.payroll.portability.schedule.domain.InstallmentSnapshot;
+import br.com.payroll.portability.shared.observability.PortabilityTelemetry;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -20,16 +21,19 @@ public class FinalizeOperationService {
   private final InstallmentRepository installmentRepository;
   private final ProcessingJobRepository jobRepository;
   private final Clock clock;
+  private final PortabilityTelemetry telemetry;
 
   public FinalizeOperationService(
       PortabilityOperationRepository operationRepository,
       InstallmentRepository installmentRepository,
       ProcessingJobRepository jobRepository,
-      Clock clock) {
+      Clock clock,
+      PortabilityTelemetry telemetry) {
     this.operationRepository = operationRepository;
     this.installmentRepository = installmentRepository;
     this.jobRepository = jobRepository;
     this.clock = clock;
+    this.telemetry = telemetry;
   }
 
   @Transactional
@@ -76,6 +80,7 @@ public class FinalizeOperationService {
     if (jobRepository.markSucceededIfOwned(jobId, fenceToken, workerId, now) != 1) {
       throw new StaleFenceException("Fence lost after financial confirm");
     }
+    telemetry.operationConfirmed();
     return true;
   }
 
@@ -122,6 +127,7 @@ public class FinalizeOperationService {
     if (jobRepository.markSucceededIfOwned(jobId, fenceToken, workerId, now) != 1) {
       throw new StaleFenceException("Fence lost after financial reject");
     }
+    telemetry.operationRejected();
     return true;
   }
 

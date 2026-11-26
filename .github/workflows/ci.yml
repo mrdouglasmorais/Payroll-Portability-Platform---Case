@@ -109,9 +109,8 @@ jobs:
           curl -sf http://localhost:5173 >/dev/null
           ./tests/e2e/dual-stack.sh
         timeout-minutes: 25
-      - name: Reset UI demo parcels for Playwright
-        run: ./scripts/lab-reset-demo-parcels.sh
-      - name: Playwright operator flow
+      # Fresh Compose volumes keep demo parcels OPEN; do not partially reopen PORTED state.
+      - name: Playwright operator flow and a11y
         working-directory: tests/e2e
         run: |
           pnpm install --frozen-lockfile

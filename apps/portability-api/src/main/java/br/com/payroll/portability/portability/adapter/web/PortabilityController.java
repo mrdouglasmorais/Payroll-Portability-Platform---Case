@@ -55,7 +55,13 @@ public class PortabilityController {
     if (idempotencyKey == null || idempotencyKey.isBlank()) {
       throw new DomainException("Cabeçalho Idempotency-Key é obrigatório");
     }
-    String beneficiaryExternalRef = string(body, "beneficiarioId");
+    if (idempotencyKey.length() > 128) {
+      throw new DomainException("Idempotency-Key excede o tamanho máximo");
+    }
+    if (correlationId != null && correlationId.length() > 128) {
+      throw new DomainException("X-Correlation-Id excede o tamanho máximo");
+    }
+    String beneficiaryExternalRef = bounded(string(body, "beneficiarioId"), "beneficiarioId", 64);
     UUID beneficiaryId =
         beneficiaryRepository
             .findIdByExternalRef(beneficiaryExternalRef)
@@ -72,9 +78,24 @@ public class PortabilityController {
     if (parcelas.isEmpty()) {
       throw new DomainException("Informe ao menos uma parcela");
     }
-    Set<String> parcelaSet = new LinkedHashSet<>(parcelas);
+    if (parcelas.size() > 50) {
+      throw new DomainException("Limite de 50 parcelas por operação");
+    }
+    Set<String> parcelaSet = new LinkedHashSet<>();
+    for (String parcela : parcelas) {
+      if (parcela == null || parcela.isBlank()) {
+        throw new DomainException("Identificador de parcela inválido");
+      }
+      if (parcela.length() > 64) {
+        throw new DomainException("Identificador de parcela excede o tamanho máximo");
+      }
+      parcelaSet.add(parcela);
+    }
+    if (parcelaSet.size() != parcelas.size()) {
+      throw new DomainException("Parcelas duplicadas na requisição");
+    }
 
-    String creditor = string(body, "credorCessionario");
+    String creditor = bounded(string(body, "credorCessionario"), "credorCessionario", 128);
     @SuppressWarnings("unchecked")
     Map<String, Object> accountMap =
         body.get("contaRecebimento") instanceof Map<?, ?> map
@@ -82,9 +103,9 @@ public class PortabilityController {
             : Map.of();
     ReceivingAccount account =
         new ReceivingAccount(
-            string(accountMap, "banco"),
-            string(accountMap, "agencia"),
-            string(accountMap, "conta"));
+            bounded(string(accountMap, "banco"), "banco", 8),
+            bounded(string(accountMap, "agencia"), "agencia", 16),
+            bounded(string(accountMap, "conta"), "conta", 32));
 
     String corr =
         correlationId == null || correlationId.isBlank()
@@ -178,5 +199,12 @@ public class PortabilityController {
       throw new DomainException(field + " é obrigatório");
     }
     return value.toString();
+  }
+
+  private static String bounded(String value, String field, int max) {
+    if (value.length() > max) {
+      throw new DomainException(field + " excede o tamanho máximo");
+    }
+    return value;
   }
 }

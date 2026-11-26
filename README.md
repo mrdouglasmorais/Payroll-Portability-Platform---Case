@@ -55,7 +55,9 @@ Wait until healthy, then open the console.
 | Operator console (pt-BR) | http://localhost:5173 |
 | Portability API health | http://localhost:8080/actuator/health |
 | Portability API status | http://localhost:8080/api/v1/status |
+| Portability metrics (Prometheus) | http://localhost:8080/actuator/prometheus |
 | Central simulator health | http://localhost:8081/actuator/health |
+| Central metrics (Prometheus) | http://localhost:8081/actuator/prometheus |
 
 Stop: `docker compose down`. Reset volumes (clean demo): `docker compose down -v`.
 
@@ -68,13 +70,14 @@ Stop: `docker compose down`. Reset volumes (clean demo): `docker compose down -v
 | `ben-recover` | Lost-response / restart harness |
 | `*-reject`, `*-503`, `*-timeout` suffixes | Central fault modes |
 
-UI defaults to `ben-ui` / `conv-1`. After a confirmed demo, reopen UI parcels explicitly (never via silent migration):
+UI defaults to `ben-ui` / `conv-1`. After a confirmed demo, **do not partially reopen PORTED parcels**. Recreate disposable volumes:
 
 ```bash
-./scripts/lab-reset-demo-parcels.sh
+docker compose down -v
+docker compose up --build -d
 ```
 
-Central Flyway `V8` historically reopened demo parcels on migrate; `V9` documents that as unsafe for persistent labs. Prefer `compose down -v` or the lab-reset script.
+`scripts/lab-reset-demo-parcels.sh` refuses financial reopen and points to the volume recreate path. Central Flyway `V8` historically reopened demo parcels on migrate; `V9` documents that hazard. Prefer exclusive synthetic beneficiaries per run.
 
 ## How to demonstrate
 
@@ -117,6 +120,7 @@ npx --yes @redocly/cli@1.34.5 lint --config redocly.yaml \
 # Compose must be healthy
 ./tests/e2e/dual-stack.sh
 ./tests/e2e/timeout-recovery.sh
+./tests/e2e/process-kill-recovery.sh
 
 cd tests/e2e && pnpm install && pnpm exec playwright install chromium && pnpm test && cd ../..
 
@@ -176,4 +180,5 @@ Operator auth, admin reconciliation tooling, axe-in-CI, soak tests, retention/PI
 - **M0–M9**: foundation → financial correctness (see git history)
 - **AI-010**: residual races + lab reset policy
 - **AI-011**: operator UI pt-BR
-- **AI-012**: release readiness audit / lock order / CI & docs
+- **AI-012**: release readiness / lock order / CI & docs
+- **M10 / AI-013**: observability metrics, request hardening, manual validation DONE

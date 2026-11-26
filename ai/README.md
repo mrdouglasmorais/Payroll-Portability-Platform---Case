@@ -22,5 +22,6 @@ Use `sessions/TEMPLATE.md` for actual prompts and evidence.
 | AI-010 | Residual hardening |
 | AI-011 | Operator UI pt-BR |
 | AI-012 | Release readiness audit |
+| AI-013 | Observability hardening + manual validation DONE |
 
 Never publish secrets or real beneficiary data. Human owns final decisions. Independent review is a separate pass, not proof of correctness.

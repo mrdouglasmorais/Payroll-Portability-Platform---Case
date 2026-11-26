@@ -22,8 +22,15 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -223,6 +230,60 @@ class PortabilityApiWebTest {
                 .header("Idempotency-Key", "web-idem-conflict")
                 .content(body2))
         .andExpect(status().isConflict());
+  }
+
+  @Test
+  void concurrentHttpSameIdempotencyKeyReturnsSingleOperation() throws Exception {
+    String body =
+        """
+        {
+          "beneficiarioId":"ben-web",
+          "parcelas":["parcela-web-1"],
+          "credorCessionario":"creditor-x",
+          "contaRecebimento":{"banco":"001","agencia":"1234","conta":"999-0"}
+        }
+        """;
+    var latch = new CountDownLatch(1);
+    Set<String> ids = Collections.synchronizedSet(new HashSet<>());
+    AtomicInteger errors = new AtomicInteger();
+    try (var executor = Executors.newFixedThreadPool(4)) {
+      List<Future<?>> futures = new java.util.ArrayList<>();
+      for (int i = 0; i < 4; i++) {
+        futures.add(
+            executor.submit(
+                () -> {
+                  try {
+                    latch.await();
+                    String response =
+                        mockMvc
+                            .perform(
+                                post("/api/v1/operacoes-portabilidade")
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .header("Idempotency-Key", "http-same-key")
+                                    .header("X-Correlation-Id", UUID.randomUUID().toString())
+                                    .content(body))
+                            .andExpect(status().isAccepted())
+                            .andReturn()
+                            .getResponse()
+                            .getContentAsString();
+                    ids.add(
+                        response.replaceAll(
+                            "(?s).*\"operationId\"\\s*:\\s*\"([^\"]+)\".*", "$1"));
+                  } catch (Exception ex) {
+                    errors.incrementAndGet();
+                  }
+                }));
+      }
+      latch.countDown();
+      for (Future<?> future : futures) {
+        future.get();
+      }
+    }
+    assertEquals(0, errors.get());
+    assertEquals(1, ids.size());
+    Integer ops =
+        jdbc.queryForObject("SELECT COUNT(*) FROM portability_operations", Integer.class);
+    assertEquals(1, ops);
   }
 
   @Test
