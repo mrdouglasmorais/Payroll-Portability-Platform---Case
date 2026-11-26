@@ -40,6 +40,8 @@ services:
       SPRING_DATASOURCE_USERNAME: central
       SPRING_DATASOURCE_PASSWORD: central
       CENTRAL_HMAC_SECRET: ${CENTRAL_HMAC_SECRET:-local-test-hmac-secret}
+      CENTRAL_HMAC_KEY_ID: ${CENTRAL_HMAC_KEY_ID:-local-test-key}
+      CENTRAL_CONFIRM_DELAY: ${CENTRAL_CONFIRM_DELAY:-PT1S}
     ports:
       - "8081:8080"
     depends_on:
@@ -62,6 +64,7 @@ services:
       SPRING_DATASOURCE_PASSWORD: portability
       CENTRAL_BASE_URL: http://central-simulator:8080
       CENTRAL_HMAC_SECRET: ${CENTRAL_HMAC_SECRET:-local-test-hmac-secret}
+      CENTRAL_HMAC_KEY_ID: ${CENTRAL_HMAC_KEY_ID:-local-test-key}
     ports:
       - "8080:8080"
     depends_on:

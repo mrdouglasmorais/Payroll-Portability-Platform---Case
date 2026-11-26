@@ -15,7 +15,7 @@ Board Miro (fonte das decisões de arquitetura): https://miro.com/app/board/uXjV
 - **M3** Central simulator (HMAC, protocol, idempotency, fault injection)
 - **M4** Portability core (HTTP API, Central HMAC client, persistent worker)
 - **M5** Web console (operator flow, TanStack Query, accessible timeline)
-- **M6+** Quality hardening, dual-stack E2E, load evidence
+- **M6** Quality hardening (dual-stack E2E, Playwright, k6 lab smoke, acceptance mapping)
 
 ## Quick start (M1)
 
@@ -51,7 +51,18 @@ cd apps/central-simulator && ./mvnw verify
 
 # Web
 cd apps/web && pnpm install && pnpm test && pnpm build
+
+# Dual-stack E2E (Compose must be healthy)
+./tests/e2e/dual-stack.sh
+
+# Playwright UI (optional)
+cd tests/e2e && pnpm install && pnpm exec playwright install chromium && pnpm test
+
+# k6 lab smoke (optional; not a production SLO)
+docker run --rm -i --network host -e API_BASE=http://localhost:8080 \
+  grafana/k6:0.54.0 run - < tests/performance/k6-m6-portability.js
 ```
+
 
 ## Trade-offs
 
