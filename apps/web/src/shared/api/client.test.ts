@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isTerminal } from './client'
+import { isTerminal } from './portabilityApiService'
 
 describe('isTerminal', () => {
   it('stops polling for confirmed and rejected', () => {

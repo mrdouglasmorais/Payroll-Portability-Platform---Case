@@ -52,8 +52,15 @@ export type OperationEvent = {
   description: string
 }
 
+export type ApiStatus = {
+  service: string
+  milestone: string
+  status: string
+}
+
 export type ApiError = {
   status: number
   message: string
   kind: 'validation' | 'conflict' | 'unavailable' | 'unknown'
+  reason?: string
 }
