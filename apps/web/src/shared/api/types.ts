@@ -24,9 +24,25 @@ export type PortabilityRequest = {
   contaRecebimento: ReceivingAccount
 }
 
+export type ProcessingView = {
+  status:
+    | 'PENDING'
+    | 'RUNNING'
+    | 'RETRYING'
+    | 'SUCCEEDED'
+    | 'REQUIRES_REVIEW'
+    | 'UNKNOWN'
+  attemptCount: number
+  errorCode: string | null
+  requiresAction: boolean
+}
+
 export type OperationStatus = {
+  operationId?: string
   status: 'PENDENTE' | 'CONFIRMADA' | 'REJEITADA'
   motivoRejeicao: string | null
+  correlationId?: string
+  processing?: ProcessingView
 }
 
 export type OperationEvent = {

@@ -8,7 +8,11 @@ public interface ProcessingJobRepository {
 
   Optional<ProcessingJob> claimNext(String workerId, Instant now, Instant leaseUntil);
 
+  boolean stillOwns(UUID jobId, long fenceToken, String workerId);
+
   void markSucceeded(UUID jobId, long fenceToken, Instant now);
+
+  int markSucceededIfOwned(UUID jobId, long fenceToken, String workerId, Instant now);
 
   void reschedule(
       UUID jobId,
@@ -20,6 +24,8 @@ public interface ProcessingJobRepository {
       Instant now);
 
   void markExhausted(UUID jobId, long fenceToken, String lastError, Instant now);
+
+  Optional<ProcessingJob> findByOperationId(UUID operationId);
 
   Optional<String> findIdempotencyKey(UUID operationId);
 }

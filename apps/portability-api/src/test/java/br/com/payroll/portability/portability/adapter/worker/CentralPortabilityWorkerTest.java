@@ -126,6 +126,9 @@ class CentralPortabilityWorkerTest {
     FakeCentral.INSTANCE.mode = FakeCentral.Mode.CONFIRM;
     UUID operationId = createOp("idem-confirm");
 
+    var before = installmentRepository.findByExternalId("parcela-w1").orElseThrow();
+    assertEquals("000", before.effectiveAccount().bank());
+
     ProcessingJob submit =
         jobRepository.claimNext("test", clock.instant(), clock.instant().plusSeconds(30)).orElseThrow();
     worker.processClaimed(submit);
@@ -137,9 +140,11 @@ class CentralPortabilityWorkerTest {
 
     assertEquals(
         BusinessStatus.CONFIRMADA, operationRepository.findById(operationId).orElseThrow().businessStatus());
-    assertEquals(
-        InstallmentStatus.PORTED,
-        installmentRepository.findByExternalId("parcela-w1").orElseThrow().status());
+    var after = installmentRepository.findByExternalId("parcela-w1").orElseThrow();
+    assertEquals(InstallmentStatus.PORTED, after.status());
+    assertEquals("001", after.effectiveAccount().bank());
+    assertEquals("1234", after.effectiveAccount().agency());
+    assertEquals("56789-0", after.effectiveAccount().account());
     Integer consumed =
         jdbc.queryForObject(
             "SELECT COUNT(*) FROM installment_reservations WHERE status = 'CONSUMED'", Integer.class);
@@ -161,13 +166,96 @@ class CentralPortabilityWorkerTest {
 
     assertEquals(
         BusinessStatus.REJEITADA, operationRepository.findById(operationId).orElseThrow().businessStatus());
-    assertEquals(
-        InstallmentStatus.OPEN,
-        installmentRepository.findByExternalId("parcela-w1").orElseThrow().status());
+    var after = installmentRepository.findByExternalId("parcela-w1").orElseThrow();
+    assertEquals(InstallmentStatus.OPEN, after.status());
+    assertEquals("000", after.effectiveAccount().bank());
+    assertEquals("0001", after.effectiveAccount().agency());
+    assertEquals("00000-0", after.effectiveAccount().account());
     Integer released =
         jdbc.queryForObject(
             "SELECT COUNT(*) FROM installment_reservations WHERE status = 'RELEASED'", Integer.class);
     assertEquals(1, released);
+  }
+
+  @Test
+  void expiredRunningLeaseIsReclaimedByAnotherWorker() {
+    FakeCentral.INSTANCE.mode = FakeCentral.Mode.CONFIRM;
+    UUID operationId = createOp("idem-running-lease");
+
+    ProcessingJob first =
+        jobRepository
+            .claimNext("worker-a", clock.instant(), clock.instant().plusSeconds(30))
+            .orElseThrow();
+    assertEquals(TechnicalJobStatus.RUNNING, first.technicalStatus());
+
+    // Simulate crash while RUNNING: lease expires, status stays RUNNING.
+    jdbc.update(
+        """
+        UPDATE processing_jobs
+        SET lease_until = ?, lease_owner = 'worker-a'
+        WHERE id = ?
+        """,
+        java.sql.Timestamp.from(clock.instant().minusSeconds(5)),
+        first.id());
+
+    Instant later = clock.instant().plusSeconds(1);
+    ProcessingJob recovered =
+        jobRepository.claimNext("worker-b", later, later.plusSeconds(30)).orElseThrow();
+    assertEquals(first.id(), recovered.id());
+    assertEquals("worker-b", recovered.leaseOwner());
+    assertTrue(recovered.fenceToken() > first.fenceToken());
+
+    worker.processClaimed(recovered);
+    Instant pollAt = clock.instant().plusSeconds(5);
+    ProcessingJob poll =
+        jobRepository.claimNext("worker-b", pollAt, pollAt.plusSeconds(30)).orElseThrow();
+    worker.processClaimed(poll);
+
+    assertEquals(
+        BusinessStatus.CONFIRMADA,
+        operationRepository.findById(operationId).orElseThrow().businessStatus());
+  }
+
+  @Test
+  void staleFenceDoesNotMutateFinancialState() {
+    FakeCentral.INSTANCE.mode = FakeCentral.Mode.CONFIRM;
+    UUID operationId = createOp("idem-stale-fence");
+
+    ProcessingJob submit =
+        jobRepository.claimNext("test", clock.instant(), clock.instant().plusSeconds(30)).orElseThrow();
+    worker.processClaimed(submit);
+
+    Instant later = clock.instant().plusSeconds(5);
+    ProcessingJob poll =
+        jobRepository.claimNext("owner", later, later.plusSeconds(30)).orElseThrow();
+
+    // Another worker reclaims with a higher fence before the stale worker finishes.
+    jdbc.update(
+        """
+        UPDATE processing_jobs
+        SET lease_until = ?, lease_owner = 'owner'
+        WHERE id = ?
+        """,
+        java.sql.Timestamp.from(later.minusSeconds(10)),
+        poll.id());
+    ProcessingJob fresh =
+        jobRepository
+            .claimNext("fresh", later.plusSeconds(1), later.plusSeconds(31))
+            .orElseThrow();
+    assertTrue(fresh.fenceToken() > poll.fenceToken());
+
+    worker.processClaimed(poll); // stale fence — must not confirm
+    assertEquals(
+        BusinessStatus.PENDENTE,
+        operationRepository.findById(operationId).orElseThrow().businessStatus());
+    assertEquals(
+        "000",
+        installmentRepository.findByExternalId("parcela-w1").orElseThrow().effectiveAccount().bank());
+
+    worker.processClaimed(fresh);
+    assertEquals(
+        BusinessStatus.CONFIRMADA,
+        operationRepository.findById(operationId).orElseThrow().businessStatus());
   }
 
   @Test

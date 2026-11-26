@@ -9,9 +9,8 @@ import br.com.payroll.portability.schedule.domain.InstallmentStatus;
 import br.com.payroll.portability.shared.domain.DomainException;
 import java.time.Clock;
 import java.time.Instant;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,62 +38,66 @@ public class CreatePortabilityService {
 
   @Transactional
   public UUID create(PortabilityCommand command) {
-    var existingId =
-        operationRepository.findOperationIdByIdempotency(IDEMPOTENCY_SCOPE, command.idempotencyKey());
-    if (existingId.isPresent()) {
-      String storedHash =
-          operationRepository
-              .findRequestHashByIdempotency(IDEMPOTENCY_SCOPE, command.idempotencyKey())
-              .orElseThrow();
-      if (!storedHash.equals(command.requestHash())) {
-        throw new IdempotencyConflictException(
-            "Idempotency key reused with a different payload");
+    Optional<UUID> claimedOrExisting =
+        operationRepository.claimIdempotencyOrFind(
+            IDEMPOTENCY_SCOPE, command.idempotencyKey(), command.requestHash());
+    if (claimedOrExisting.isPresent()) {
+      return claimedOrExisting.get();
+    }
+
+    boolean claimOwned = true;
+    try {
+      if (!consentRepository.hasAcceptedConsent(command.beneficiaryId())) {
+        throw new DomainException("Beneficiary has no accepted consent");
       }
-      return existingId.get();
-    }
 
-    if (!consentRepository.hasAcceptedConsent(command.beneficiaryId())) {
-      throw new DomainException("Beneficiary has no accepted consent");
-    }
-
-    List<InstallmentSnapshot> installments =
-        installmentRepository.findByExternalIds(command.externalInstallmentIds());
-    if (installments.size() != command.externalInstallmentIds().size()) {
-      throw new DomainException("One or more installments were not found");
-    }
-
-    Set<String> agreements = new HashSet<>();
-    for (InstallmentSnapshot installment : installments) {
-      if (!installment.beneficiaryId().equals(command.beneficiaryId())) {
-        throw new DomainException("Installment does not belong to beneficiary");
+      List<InstallmentSnapshot> installments =
+          installmentRepository.findByExternalIds(command.externalInstallmentIds());
+      if (installments.size() != command.externalInstallmentIds().size()) {
+        throw new DomainException("One or more installments were not found");
       }
-      if (installment.status() != InstallmentStatus.OPEN) {
-        throw new DomainException("Installment is not open: " + installment.externalInstallmentId());
+
+      for (InstallmentSnapshot installment : installments) {
+        if (!installment.beneficiaryId().equals(command.beneficiaryId())) {
+          throw new DomainException("Installment does not belong to beneficiary");
+        }
+        if (installment.status() != InstallmentStatus.OPEN) {
+          throw new DomainException(
+              "Installment is not open: " + installment.externalInstallmentId());
+        }
+        if (consentRepository
+            .findAccepted(command.beneficiaryId(), installment.agreementId())
+            .isEmpty()) {
+          throw new DomainException(
+              "No accepted consent for agreement " + installment.agreementId());
+        }
       }
-      agreements.add(installment.agreementId());
-      if (consentRepository.findAccepted(command.beneficiaryId(), installment.agreementId()).isEmpty()) {
-        throw new DomainException("No accepted consent for agreement " + installment.agreementId());
+
+      Instant now = clock.instant();
+      PortabilityOperation operation =
+          PortabilityOperation.create(
+              command.beneficiaryId(),
+              command.assigneeCreditor(),
+              command.receivingAccount(),
+              command.externalInstallmentIds(),
+              command.correlationId(),
+              now);
+
+      for (InstallmentSnapshot installment : installments) {
+        installment.reserve();
+        installmentRepository.save(installment);
+      }
+
+      operationRepository.insertAtomicCreate(operation);
+      operationRepository.bindIdempotencyOperation(
+          IDEMPOTENCY_SCOPE, command.idempotencyKey(), operation.id());
+      claimOwned = false;
+      return operation.id();
+    } finally {
+      if (claimOwned) {
+        operationRepository.releaseIdempotencyClaim(
+            IDEMPOTENCY_SCOPE, command.idempotencyKey());
       }
     }
-
-    Instant now = clock.instant();
-    PortabilityOperation operation =
-        PortabilityOperation.create(
-            command.beneficiaryId(),
-            command.assigneeCreditor(),
-            command.receivingAccount(),
-            command.externalInstallmentIds(),
-            command.correlationId(),
-            now);
-
-    for (InstallmentSnapshot installment : installments) {
-      installment.reserve();
-      installmentRepository.save(installment);
-    }
-
-    operationRepository.insertAtomicCreate(
-        operation, IDEMPOTENCY_SCOPE, command.idempotencyKey(), command.requestHash());
-
-    return operation.id();
   }
 }

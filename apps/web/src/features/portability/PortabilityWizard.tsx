@@ -379,6 +379,13 @@ export function PortabilityWizard() {
               Business rejection: {statusQuery.data.motivoRejeicao ?? 'No reason provided'}
             </p>
           )}
+          {statusQuery.data?.processing?.requiresAction && (
+            <p className="error" role="status">
+              Technical review required ({statusQuery.data.processing.errorCode ?? 'INTEGRATION_ERROR'}
+              , attempts {statusQuery.data.processing.attemptCount}). Business status remains
+              pending — not a rejection.
+            </p>
+          )}
           {statusQuery.data?.status === 'CONFIRMADA' && (
             <p className="ok" role="status">
               Confirmed by Central. Receiving account effects applied only after verification.

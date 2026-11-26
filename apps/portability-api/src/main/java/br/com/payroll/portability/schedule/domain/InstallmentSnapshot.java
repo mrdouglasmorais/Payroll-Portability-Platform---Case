@@ -1,5 +1,6 @@
 package br.com.payroll.portability.schedule.domain;
 
+import br.com.payroll.portability.portability.domain.ReceivingAccount;
 import br.com.payroll.portability.shared.domain.DomainException;
 import br.com.payroll.portability.shared.domain.Money;
 import java.time.LocalDate;
@@ -15,6 +16,8 @@ public final class InstallmentSnapshot {
   private final Money amount;
   private final LocalDate discountDate;
   private InstallmentStatus status;
+  /** Conta vigente / efetivada — só muda após confirmação da portabilidade. */
+  private ReceivingAccount effectiveAccount;
 
   public InstallmentSnapshot(
       UUID id,
@@ -24,6 +27,26 @@ public final class InstallmentSnapshot {
       Money amount,
       LocalDate discountDate,
       InstallmentStatus status) {
+    this(
+        id,
+        externalInstallmentId,
+        beneficiaryId,
+        agreementId,
+        amount,
+        discountDate,
+        status,
+        new ReceivingAccount("000", "0001", "00000-0"));
+  }
+
+  public InstallmentSnapshot(
+      UUID id,
+      String externalInstallmentId,
+      UUID beneficiaryId,
+      String agreementId,
+      Money amount,
+      LocalDate discountDate,
+      InstallmentStatus status,
+      ReceivingAccount effectiveAccount) {
     this.id = Objects.requireNonNull(id);
     this.externalInstallmentId = Objects.requireNonNull(externalInstallmentId);
     this.beneficiaryId = Objects.requireNonNull(beneficiaryId);
@@ -31,6 +54,7 @@ public final class InstallmentSnapshot {
     this.amount = Objects.requireNonNull(amount);
     this.discountDate = Objects.requireNonNull(discountDate);
     this.status = Objects.requireNonNull(status);
+    this.effectiveAccount = Objects.requireNonNull(effectiveAccount);
   }
 
   public void reserve() {
@@ -47,11 +71,12 @@ public final class InstallmentSnapshot {
     this.status = InstallmentStatus.OPEN;
   }
 
-  public void markPorted() {
+  public void markPorted(ReceivingAccount confirmedDestination) {
     if (status != InstallmentStatus.RESERVED) {
       throw new DomainException("Only reserved installments can be marked ported");
     }
     this.status = InstallmentStatus.PORTED;
+    this.effectiveAccount = Objects.requireNonNull(confirmedDestination);
   }
 
   public UUID id() {
@@ -80,5 +105,9 @@ public final class InstallmentSnapshot {
 
   public InstallmentStatus status() {
     return status;
+  }
+
+  public ReceivingAccount effectiveAccount() {
+    return effectiveAccount;
   }
 }

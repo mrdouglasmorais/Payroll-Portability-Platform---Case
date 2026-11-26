@@ -3,10 +3,13 @@ package br.com.payroll.portability.portability.adapter.web;
 import br.com.payroll.portability.beneficiary.application.BeneficiaryRepository;
 import br.com.payroll.portability.portability.application.CreatePortabilityService;
 import br.com.payroll.portability.portability.application.PortabilityOperationRepository;
+import br.com.payroll.portability.portability.application.ProcessingJob;
+import br.com.payroll.portability.portability.application.ProcessingJobRepository;
 import br.com.payroll.portability.portability.application.RequestHash;
 import br.com.payroll.portability.portability.domain.PortabilityCommand;
 import br.com.payroll.portability.portability.domain.PortabilityOperation;
 import br.com.payroll.portability.portability.domain.ReceivingAccount;
+import br.com.payroll.portability.portability.domain.TechnicalJobStatus;
 import br.com.payroll.portability.shared.domain.DomainException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -30,14 +33,17 @@ public class PortabilityController {
 
   private final CreatePortabilityService createService;
   private final PortabilityOperationRepository operationRepository;
+  private final ProcessingJobRepository jobRepository;
   private final BeneficiaryRepository beneficiaryRepository;
 
   public PortabilityController(
       CreatePortabilityService createService,
       PortabilityOperationRepository operationRepository,
+      ProcessingJobRepository jobRepository,
       BeneficiaryRepository beneficiaryRepository) {
     this.createService = createService;
     this.operationRepository = operationRepository;
+    this.jobRepository = jobRepository;
     this.beneficiaryRepository = beneficiaryRepository;
   }
 
@@ -99,8 +105,11 @@ public class PortabilityController {
             .findById(operationId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Not found"));
     Map<String, Object> body = new LinkedHashMap<>();
+    body.put("operationId", operation.id().toString());
     body.put("status", operation.businessStatus().name());
     body.put("motivoRejeicao", operation.rejectionReason());
+    body.put("correlationId", operation.correlationId());
+    body.put("processing", processingView(operationId));
     return body;
   }
 
@@ -122,6 +131,58 @@ public class PortabilityController {
               events.add(row);
             });
     return events;
+  }
+
+  private Map<String, Object> processingView(UUID operationId) {
+    Map<String, Object> processing = new LinkedHashMap<>();
+    ProcessingJob job = jobRepository.findByOperationId(operationId).orElse(null);
+    if (job == null) {
+      processing.put("status", "UNKNOWN");
+      processing.put("attemptCount", 0);
+      processing.put("errorCode", null);
+      processing.put("requiresAction", false);
+      return processing;
+    }
+    TechnicalJobStatus tech = job.technicalStatus();
+    String status;
+    boolean requiresAction = false;
+    if (tech == TechnicalJobStatus.EXHAUSTED) {
+      status = "REQUIRES_REVIEW";
+      requiresAction = true;
+    } else if (tech == TechnicalJobStatus.SUCCEEDED) {
+      status = "SUCCEEDED";
+    } else if (tech == TechnicalJobStatus.RUNNING) {
+      status = "RUNNING";
+    } else if (tech == TechnicalJobStatus.FAILED) {
+      status = "RETRYING";
+    } else {
+      status = "PENDING";
+    }
+    processing.put("status", status);
+    processing.put("attemptCount", job.attemptCount());
+    processing.put("errorCode", classifyError(job.lastError()));
+    processing.put("requiresAction", requiresAction);
+    return processing;
+  }
+
+  private static String classifyError(String lastError) {
+    if (lastError == null || lastError.isBlank()) {
+      return null;
+    }
+    String upper = lastError.toUpperCase();
+    if (upper.contains("UNAVAILABLE") || upper.contains("503") || upper.contains("502")) {
+      return "CENTRAL_UNAVAILABLE";
+    }
+    if (upper.contains("POLL_DEADLINE")) {
+      return "POLL_DEADLINE_EXCEEDED";
+    }
+    if (upper.contains("RATE LIMITED") || upper.contains("429")) {
+      return "CENTRAL_RATE_LIMITED";
+    }
+    if (upper.contains("SIGNATURE")) {
+      return "HMAC_FAILURE";
+    }
+    return "INTEGRATION_ERROR";
   }
 
   private static String string(Map<String, ?> body, String field) {

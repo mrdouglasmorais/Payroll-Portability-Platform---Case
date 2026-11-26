@@ -10,6 +10,7 @@ import br.com.payroll.portability.portability.application.FinalizeOperationServi
 import br.com.payroll.portability.portability.application.PortabilityOperationRepository;
 import br.com.payroll.portability.portability.application.ProcessingJob;
 import br.com.payroll.portability.portability.application.ProcessingJobRepository;
+import br.com.payroll.portability.portability.application.StaleFenceException;
 import br.com.payroll.portability.portability.domain.PortabilityOperation;
 import java.time.Clock;
 import java.time.Duration;
@@ -55,6 +56,10 @@ public class CentralPortabilityWorker {
     this.clock = clock;
   }
 
+  String workerId() {
+    return workerId;
+  }
+
   @Scheduled(fixedDelayString = "${app.central.worker-tick:PT1S}")
   public void tick() {
     if (!properties.isWorkerEnabled()) {
@@ -74,17 +79,19 @@ public class CentralPortabilityWorker {
       } else if (POLL.equals(job.jobType())) {
         poll(job);
       } else {
-        failTransient(job, "Unknown job type: " + job.jobType());
+        failTransient(job, "Unknown job type: " + job.jobType(), null);
       }
+    } catch (StaleFenceException ex) {
+      log.info("Stale fence on job {}; skipping financial mutation", job.id());
     } catch (CentralException ex) {
-      if (ex.isTransientFailure()) {
-        failTransient(job, ex.getMessage());
+      if (ex.isPermanentFailure()) {
+        failPermanent(job, "Permanent central error: " + ex.getMessage());
       } else {
-        failTransient(job, "Non-retryable central error held for review: " + ex.getMessage());
+        failTransient(job, sanitizeError(ex.getMessage()), ex.retryAfter());
       }
     } catch (RuntimeException ex) {
       log.warn("Worker failure on job {}", job.id(), ex);
-      failTransient(job, ex.getMessage());
+      failTransient(job, sanitizeError(ex.getMessage()), null);
     }
   }
 
@@ -116,7 +123,8 @@ public class CentralPortabilityWorker {
     String protocol =
         centralGateway.submitPortability(request, idempotencyKey, operation.correlationId());
 
-    finalizeOperationService.attachProtocol(operation.id(), protocol);
+    finalizeOperationService.attachProtocolWithFence(
+        operation.id(), protocol, job.id(), job.fenceToken(), owner(job));
     reschedulePoll(job, null);
   }
 
@@ -124,9 +132,20 @@ public class CentralPortabilityWorker {
     PortabilityOperation operation =
         operationRepository.findById(job.operationId()).orElseThrow();
     if (operation.businessStatus().isTerminal()) {
-      jobRepository.markSucceeded(job.id(), job.fenceToken(), clock.instant());
+      jobRepository.markSucceededIfOwned(
+          job.id(), job.fenceToken(), owner(job), clock.instant());
       return;
     }
+
+    Instant now = clock.instant();
+    if (operation
+        .createdAt()
+        .plus(properties.getMaxPollDuration())
+        .isBefore(now)) {
+      failPermanent(job, "POLL_DEADLINE_EXCEEDED: escalate to reconciliation");
+      return;
+    }
+
     String protocol = operation.centralProtocol();
     if (protocol == null || protocol.isBlank()) {
       rescheduleAs(job, SUBMIT, "Missing protocol; re-submit", properties.getPollDelay());
@@ -140,8 +159,8 @@ public class CentralPortabilityWorker {
     }
 
     if ("CONFIRMADA".equals(status.status())) {
-      finalizeOperationService.confirm(operation.id());
-      jobRepository.markSucceeded(job.id(), job.fenceToken(), clock.instant());
+      finalizeOperationService.confirmWithFence(
+          operation.id(), job.id(), job.fenceToken(), owner(job));
       return;
     }
     if ("REJEITADA".equals(status.status())) {
@@ -149,12 +168,12 @@ public class CentralPortabilityWorker {
           status.motivoRejeicao() == null || status.motivoRejeicao().isBlank()
               ? "Rejected by Central"
               : status.motivoRejeicao();
-      finalizeOperationService.reject(operation.id(), reason);
-      jobRepository.markSucceeded(job.id(), job.fenceToken(), clock.instant());
+      finalizeOperationService.rejectWithFence(
+          operation.id(), reason, job.id(), job.fenceToken(), owner(job));
       return;
     }
 
-    failTransient(job, "Unexpected central status: " + status.status());
+    failTransient(job, "Unexpected central status: " + status.status(), null);
   }
 
   private void reschedulePoll(ProcessingJob job, String error) {
@@ -173,22 +192,46 @@ public class CentralPortabilityWorker {
         now);
   }
 
-  private void failTransient(ProcessingJob job, String error) {
+  private void failTransient(ProcessingJob job, String error, Duration retryAfter) {
     Instant now = clock.instant();
     int attempts = job.attemptCount() + 1;
+    String sanitized = sanitizeError(error);
+    finalizeOperationService.recordIntegrationFailure(job.operationId(), sanitized);
     if (attempts >= properties.getMaxAttempts()) {
-      jobRepository.markExhausted(job.id(), job.fenceToken(), error, now);
+      jobRepository.markExhausted(job.id(), job.fenceToken(), sanitized, now);
       return;
     }
     Duration backoff =
-        properties.getPollDelay().multipliedBy(Math.min(attempts, 8));
+        retryAfter != null && !retryAfter.isNegative() && !retryAfter.isZero()
+            ? retryAfter
+            : JobBackoff.nextDelay(
+                properties.getPollDelay(), attempts, properties.getMaxBackoff());
     jobRepository.reschedule(
         job.id(),
         job.fenceToken(),
         job.jobType(),
         now.plus(backoff),
         attempts,
-        error,
+        sanitized,
         now);
+  }
+
+  private void failPermanent(ProcessingJob job, String error) {
+    Instant now = clock.instant();
+    String sanitized = sanitizeError(error);
+    finalizeOperationService.recordIntegrationFailure(job.operationId(), sanitized);
+    jobRepository.markExhausted(job.id(), job.fenceToken(), sanitized, now);
+  }
+
+  private static String owner(ProcessingJob job) {
+    return job.leaseOwner() == null ? "" : job.leaseOwner();
+  }
+
+  private static String sanitizeError(String error) {
+    if (error == null || error.isBlank()) {
+      return "unknown error";
+    }
+    String trimmed = error.replaceAll("[\\r\\n]+", " ").trim();
+    return trimmed.length() > 240 ? trimmed.substring(0, 240) : trimmed;
   }
 }

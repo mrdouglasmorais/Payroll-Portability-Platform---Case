@@ -1,5 +1,6 @@
 package br.com.payroll.portability.schedule.adapter.persistence;
 
+import br.com.payroll.portability.portability.domain.ReceivingAccount;
 import br.com.payroll.portability.schedule.application.InstallmentRepository;
 import br.com.payroll.portability.schedule.domain.InstallmentSnapshot;
 import br.com.payroll.portability.schedule.domain.InstallmentStatus;
@@ -20,15 +21,24 @@ import org.springframework.stereotype.Repository;
 public class JdbcInstallmentRepository implements InstallmentRepository {
 
   private static final RowMapper<InstallmentSnapshot> MAPPER =
-      (rs, rowNum) ->
-          new InstallmentSnapshot(
-              UUID.fromString(rs.getString("id")),
-              rs.getString("external_installment_id"),
-              UUID.fromString(rs.getString("beneficiary_id")),
-              rs.getString("agreement_id"),
-              Money.of(rs.getBigDecimal("amount")),
-              rs.getDate("discount_date").toLocalDate(),
-              InstallmentStatus.valueOf(rs.getString("status")));
+      (rs, rowNum) -> {
+        String bank = rs.getString("effective_bank");
+        String agency = rs.getString("effective_agency");
+        String account = rs.getString("effective_account");
+        ReceivingAccount effective =
+            (bank == null || agency == null || account == null)
+                ? new ReceivingAccount("000", "0001", "00000-0")
+                : new ReceivingAccount(bank, agency, account);
+        return new InstallmentSnapshot(
+            UUID.fromString(rs.getString("id")),
+            rs.getString("external_installment_id"),
+            UUID.fromString(rs.getString("beneficiary_id")),
+            rs.getString("agreement_id"),
+            Money.of(rs.getBigDecimal("amount")),
+            rs.getDate("discount_date").toLocalDate(),
+            InstallmentStatus.valueOf(rs.getString("status")),
+            effective);
+      };
 
   private final JdbcTemplate jdbc;
 
@@ -45,8 +55,18 @@ public class JdbcInstallmentRepository implements InstallmentRepository {
             installment.id());
     if (exists != null && exists > 0) {
       jdbc.update(
-          "UPDATE installment_snapshots SET status = ? WHERE id = ?",
+          """
+          UPDATE installment_snapshots
+          SET status = ?,
+              effective_bank = ?,
+              effective_agency = ?,
+              effective_account = ?
+          WHERE id = ?
+          """,
           installment.status().name(),
+          installment.effectiveAccount().bank(),
+          installment.effectiveAccount().agency(),
+          installment.effectiveAccount().account(),
           installment.id());
       return;
     }
@@ -54,8 +74,9 @@ public class JdbcInstallmentRepository implements InstallmentRepository {
         """
         INSERT INTO installment_snapshots (
           id, external_installment_id, beneficiary_id, agreement_id,
-          amount, discount_date, status, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          amount, discount_date, status, created_at,
+          effective_bank, effective_agency, effective_account
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         installment.id(),
         installment.externalInstallmentId(),
@@ -64,7 +85,10 @@ public class JdbcInstallmentRepository implements InstallmentRepository {
         installment.amount().amount(),
         Date.valueOf(installment.discountDate()),
         installment.status().name(),
-        Timestamp.from(Instant.now()));
+        Timestamp.from(Instant.now()),
+        installment.effectiveAccount().bank(),
+        installment.effectiveAccount().agency(),
+        installment.effectiveAccount().account());
   }
 
   @Override

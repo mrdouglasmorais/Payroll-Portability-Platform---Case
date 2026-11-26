@@ -154,6 +154,7 @@ paths:
               schema:
                 type: object
                 properties:
+                  operationId: *id001
                   status:
                     type: string
                     enum:
@@ -164,9 +165,40 @@ paths:
                     type:
                     - string
                     - 'null'
+                  correlationId: *id001
+                  processing:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                        enum:
+                        - PENDING
+                        - RUNNING
+                        - RETRYING
+                        - SUCCEEDED
+                        - REQUIRES_REVIEW
+                        - UNKNOWN
+                      attemptCount:
+                        type: integer
+                        minimum: 0
+                      errorCode:
+                        type:
+                        - string
+                        - 'null'
+                      requiresAction:
+                        type: boolean
+                    required:
+                    - status
+                    - attemptCount
+                    - errorCode
+                    - requiresAction
+                    additionalProperties: false
                 required:
+                - operationId
                 - status
                 - motivoRejeicao
+                - correlationId
+                - processing
                 additionalProperties: false
         '403':
           description: Not authorized

@@ -5,6 +5,7 @@ import br.com.payroll.portability.integration.integrity.HmacSigner;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -159,8 +160,13 @@ public class HttpCentralGateway implements CentralGateway {
 
       verifyResponse(method, path, query, response, nonce, corr);
       int code = response.getStatusCode().value();
+      Duration retryAfter = parseRetryAfter(response);
       if (code >= 500) {
-        throw new CentralException("Central unavailable: HTTP " + code, true, code);
+        throw new CentralException(
+            "Central unavailable: HTTP " + code, true, code, retryAfter, null);
+      }
+      if (code == 429) {
+        throw new CentralException("Central rate limited", true, 429, retryAfter, null);
       }
       if (code == 409) {
         throw new CentralException("Central conflict", false, 409);
@@ -173,14 +179,54 @@ public class HttpCentralGateway implements CentralGateway {
       throw ex;
     } catch (RestClientResponseException ex) {
       int code = ex.getStatusCode().value();
+      Duration retryAfter = parseRetryAfterHeader(ex.getResponseHeaders().getFirst("Retry-After"));
+      // Prefer verifying HMAC when error response includes signature headers.
+      tryVerifyErrorResponse(method, path, query, ex, nonce, corr);
       boolean transientFailure = code == 429 || code >= 500;
       throw new CentralException(
-          "Central HTTP error: " + code + " " + ex.getResponseBodyAsString(),
+          "Central HTTP error: " + code,
           transientFailure,
           code,
+          retryAfter,
           ex);
     } catch (RestClientException ex) {
       throw new CentralException("Central transport failure", true, 0, ex);
+    }
+  }
+
+  private void tryVerifyErrorResponse(
+      String method,
+      String path,
+      String query,
+      RestClientResponseException ex,
+      String requestNonce,
+      String correlationId) {
+    String signature = ex.getResponseHeaders().getFirst("X-Signature");
+    if (signature == null || signature.isBlank()) {
+      // Unsigned error bodies are not trusted beyond status class.
+      return;
+    }
+    String timestamp = ex.getResponseHeaders().getFirst("X-Timestamp");
+    String nonce = ex.getResponseHeaders().getFirst("X-Nonce");
+    String keyId = ex.getResponseHeaders().getFirst("X-Key-Id");
+    if (timestamp == null || nonce == null || keyId == null) {
+      throw new CentralException("Central error response missing HMAC headers", true, 502);
+    }
+    byte[] body = ex.getResponseBodyAsByteArray();
+    String canonical =
+        HmacCanonical.responseString(
+            method,
+            path,
+            query,
+            body == null ? new byte[0] : body,
+            timestamp,
+            nonce,
+            keyId,
+            correlationId,
+            requestNonce,
+            ex.getStatusCode().value());
+    if (!signer.verify(canonical, signature)) {
+      throw new CentralException("Central error response signature invalid", true, 502);
     }
   }
 
@@ -213,6 +259,25 @@ public class HttpCentralGateway implements CentralGateway {
             response.getStatusCode().value());
     if (!signer.verify(canonical, signature)) {
       throw new CentralException("Central response signature invalid", true, 502);
+    }
+  }
+
+  private static Duration parseRetryAfter(ResponseEntity<?> response) {
+    return parseRetryAfterHeader(response.getHeaders().getFirst("Retry-After"));
+  }
+
+  private static Duration parseRetryAfterHeader(String value) {
+    if (value == null || value.isBlank()) {
+      return null;
+    }
+    try {
+      long seconds = Long.parseLong(value.trim());
+      if (seconds < 0) {
+        return null;
+      }
+      return Duration.ofSeconds(Math.min(seconds, 300));
+    } catch (NumberFormatException ignored) {
+      return null;
     }
   }
 

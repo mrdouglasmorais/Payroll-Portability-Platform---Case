@@ -158,6 +158,15 @@ public final class PortabilityOperation {
     recordEvent("OPERATION_REJECTED", reason, now);
   }
 
+  /** Append-only technical timeline event; does not change business status. */
+  public void recordTechnicalEvent(String type, String description, Instant now) {
+    Objects.requireNonNull(type, "type");
+    Objects.requireNonNull(description, "description");
+    Objects.requireNonNull(now, "now");
+    recordEvent(type, description, now);
+    this.updatedAt = now;
+  }
+
   private void transitionTo(BusinessStatus next, String reason, Instant now) {
     if (!businessStatus.canTransitionTo(next)) {
       throw new DomainException(

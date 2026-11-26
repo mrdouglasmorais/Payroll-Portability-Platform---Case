@@ -16,6 +16,8 @@ public class CentralProperties {
   private Duration leaseDuration = Duration.ofSeconds(30);
   private boolean workerEnabled = true;
   private Duration workerTick = Duration.ofSeconds(1);
+  private Duration maxBackoff = Duration.ofSeconds(60);
+  private Duration maxPollDuration = Duration.ofHours(24);
 
   public String getBaseUrl() {
     return baseUrl;
@@ -95,5 +97,21 @@ public class CentralProperties {
 
   public void setWorkerTick(Duration workerTick) {
     this.workerTick = workerTick;
+  }
+
+  public Duration getMaxBackoff() {
+    return maxBackoff;
+  }
+
+  public void setMaxBackoff(Duration maxBackoff) {
+    this.maxBackoff = maxBackoff;
+  }
+
+  public Duration getMaxPollDuration() {
+    return maxPollDuration;
+  }
+
+  public void setMaxPollDuration(Duration maxPollDuration) {
+    this.maxPollDuration = maxPollDuration;
   }
 }

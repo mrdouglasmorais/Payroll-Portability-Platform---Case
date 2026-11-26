@@ -28,12 +28,83 @@ public class JdbcPortabilityOperationRepository implements PortabilityOperationR
   }
 
   @Override
+  public Optional<UUID> claimIdempotencyOrFind(
+      String scope, String key, String requestHash) {
+    int inserted =
+        jdbc.update(
+            """
+            INSERT INTO idempotency_keys (
+              id, scope, idempotency_key, request_hash, operation_id, created_at
+            ) VALUES (?, ?, ?, ?, NULL, ?)
+            ON CONFLICT (scope, idempotency_key) DO NOTHING
+            """,
+            UUID.randomUUID(),
+            scope,
+            key,
+            requestHash,
+            Timestamp.from(Instant.now()));
+    if (inserted == 1) {
+      return Optional.empty();
+    }
+    // Block until the winning transaction commits bind (or rolls back).
+    List<UUID> locked =
+        jdbc.query(
+            """
+            SELECT request_hash, operation_id
+            FROM idempotency_keys
+            WHERE scope = ? AND idempotency_key = ?
+            FOR UPDATE
+            """,
+            (rs, rowNum) -> {
+              String storedHash = rs.getString("request_hash");
+              if (!storedHash.equals(requestHash)) {
+                throw new br.com.payroll.portability.portability.application
+                    .IdempotencyConflictException(
+                    "Idempotency key reused with a different payload");
+              }
+              String op = rs.getString("operation_id");
+              return op == null ? null : UUID.fromString(op);
+            },
+            scope,
+            key);
+    if (locked.isEmpty()) {
+      throw new IllegalStateException("Idempotency key missing after conflict");
+    }
+    UUID operationId = locked.getFirst();
+    if (operationId == null) {
+      throw new IllegalStateException(
+          "Idempotency claim abandoned before bind; retry the request");
+    }
+    return Optional.of(operationId);
+  }
+
+  @Override
+  public void bindIdempotencyOperation(String scope, String key, UUID operationId) {
+    jdbc.update(
+        """
+        UPDATE idempotency_keys
+        SET operation_id = ?
+        WHERE scope = ? AND idempotency_key = ? AND operation_id IS NULL
+        """,
+        operationId,
+        scope,
+        key);
+  }
+
+  @Override
+  public void releaseIdempotencyClaim(String scope, String key) {
+    jdbc.update(
+        """
+        DELETE FROM idempotency_keys
+        WHERE scope = ? AND idempotency_key = ? AND operation_id IS NULL
+        """,
+        scope,
+        key);
+  }
+
+  @Override
   @Transactional
-  public void insertAtomicCreate(
-      PortabilityOperation operation,
-      String idempotencyScope,
-      String idempotencyKey,
-      String requestHash) {
+  public void insertAtomicCreate(PortabilityOperation operation) {
     Instant now = operation.createdAt();
     jdbc.update(
         """
@@ -117,19 +188,6 @@ public class JdbcPortabilityOperationRepository implements PortabilityOperationR
         Timestamp.from(now),
         Timestamp.from(now),
         Timestamp.from(now));
-
-    jdbc.update(
-        """
-        INSERT INTO idempotency_keys (
-          id, scope, idempotency_key, request_hash, operation_id, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?)
-        """,
-        UUID.randomUUID(),
-        idempotencyScope,
-        idempotencyKey,
-        requestHash,
-        operation.id(),
-        Timestamp.from(now));
   }
 
   @Override
@@ -210,6 +268,33 @@ public class JdbcPortabilityOperationRepository implements PortabilityOperationR
         operation.centralProtocol(),
         Timestamp.from(operation.updatedAt()),
         operation.id());
+    insertNewEvents(operation);
+  }
+
+  @Override
+  public int saveOutcomeIfPending(PortabilityOperation operation, BusinessStatus expectedStatus) {
+    int updated =
+        jdbc.update(
+            """
+            UPDATE portability_operations
+            SET business_status = ?, rejection_reason = ?, central_protocol = ?, updated_at = ?
+            WHERE id = ? AND business_status = ?
+            """,
+            operation.businessStatus().name(),
+            operation.rejectionReason(),
+            operation.centralProtocol(),
+            Timestamp.from(operation.updatedAt()),
+            operation.id(),
+            expectedStatus.name());
+    if (updated == 1) {
+      insertNewEvents(operation);
+    } else {
+      operation.pullNewEvents();
+    }
+    return updated;
+  }
+
+  private void insertNewEvents(PortabilityOperation operation) {
     for (OperationEvent event : operation.pullNewEvents()) {
       jdbc.update(
           """

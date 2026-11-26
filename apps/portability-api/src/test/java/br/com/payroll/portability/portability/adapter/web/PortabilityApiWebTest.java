@@ -175,7 +175,10 @@ class PortabilityApiWebTest {
     mockMvc
         .perform(get("/api/v1/operacoes-portabilidade/" + operationId))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.status").value("PENDENTE"));
+        .andExpect(jsonPath("$.status").value("PENDENTE"))
+        .andExpect(jsonPath("$.operationId").value(operationId))
+        .andExpect(jsonPath("$.processing.status").exists())
+        .andExpect(jsonPath("$.processing.requiresAction").value(false));
 
     mockMvc
         .perform(get("/api/v1/operacoes-portabilidade/" + operationId + "/eventos"))

@@ -1,5 +1,6 @@
 package br.com.payroll.portability.portability.application;
 
+import br.com.payroll.portability.portability.domain.BusinessStatus;
 import br.com.payroll.portability.portability.domain.OperationEvent;
 import br.com.payroll.portability.portability.domain.PortabilityOperation;
 import java.time.Instant;
@@ -9,11 +10,18 @@ import java.util.UUID;
 
 public interface PortabilityOperationRepository {
 
-  void insertAtomicCreate(
-      PortabilityOperation operation,
-      String idempotencyScope,
-      String idempotencyKey,
-      String requestHash);
+  /**
+   * Atomically claims an idempotency key (operation_id null). Returns empty when this caller
+   * owns the claim; returns existing operation id on replay; throws on hash mismatch.
+   */
+  Optional<UUID> claimIdempotencyOrFind(
+      String scope, String key, String requestHash);
+
+  void bindIdempotencyOperation(String scope, String key, UUID operationId);
+
+  void releaseIdempotencyClaim(String scope, String key);
+
+  void insertAtomicCreate(PortabilityOperation operation);
 
   Optional<UUID> findOperationIdByIdempotency(String scope, String key);
 
@@ -22,6 +30,9 @@ public interface PortabilityOperationRepository {
   Optional<PortabilityOperation> findById(UUID operationId);
 
   void saveOutcome(PortabilityOperation operation);
+
+  /** Optimistic transition: updates only while previous business status matches. */
+  int saveOutcomeIfPending(PortabilityOperation operation, BusinessStatus expectedStatus);
 
   void consumeReservation(UUID operationId, String externalInstallmentId, Instant now);
 
