@@ -1,6 +1,6 @@
 # apps/web
 
-React 19 + TypeScript + Vite console for the payroll portability platform.
+Console operacional (pt-BR) em React 19 + TypeScript + Vite para a plataforma de portabilidade de folha.
 
 ## Local commands
 

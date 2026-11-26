@@ -13,7 +13,7 @@ const apiBase = import.meta.env.VITE_API_BASE_URL ?? ''
 async function fetchStatus(): Promise<ApiStatus> {
   const response = await fetch(`${apiBase}/api/v1/status`)
   if (!response.ok) {
-    throw new Error(`API status failed: ${response.status}`)
+    throw new Error(`Falha ao consultar status da API: ${response.status}`)
   }
   return response.json()
 }
@@ -28,31 +28,31 @@ function App() {
   return (
     <main className="shell">
       <header className="brand">
-        <p className="eyebrow">Payroll Portability</p>
-        <h1>Operational console</h1>
+        <p className="eyebrow">Portabilidade de Folha</p>
+        <h1>Console operacional</h1>
         <p className="lede">
-          Operator flow: authorize, select installments, submit once, and follow the local
-          timeline until the Central outcome is verified.
+          Fluxo do operador: autorizar, selecionar parcelas, enviar uma vez e acompanhar a
+          linha do tempo local até a Central confirmar o resultado.
         </p>
       </header>
 
       <section className="status-panel" aria-live="polite">
-        <h2>Platform API</h2>
-        {statusQuery.isPending && <p>Checking API health…</p>}
+        <h2>API da plataforma</h2>
+        {statusQuery.isPending && <p>Verificando saúde da API…</p>}
         {statusQuery.isError && (
           <p className="error">
-            Unable to reach the API. Start the stack with{' '}
+            Não foi possível alcançar a API. Suba o ambiente com{' '}
             <code>docker compose up --build</code>.
           </p>
         )}
         {statusQuery.data && (
           <dl>
             <div>
-              <dt>Service</dt>
+              <dt>Serviço</dt>
               <dd>{statusQuery.data.service}</dd>
             </div>
             <div>
-              <dt>Milestone</dt>
+              <dt>Marco</dt>
               <dd>{statusQuery.data.milestone}</dd>
             </div>
             <div>

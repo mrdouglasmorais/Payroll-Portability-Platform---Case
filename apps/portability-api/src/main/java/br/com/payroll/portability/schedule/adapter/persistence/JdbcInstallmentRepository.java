@@ -54,22 +54,17 @@ public class JdbcInstallmentRepository implements InstallmentRepository {
             Integer.class,
             installment.id());
     if (exists != null && exists > 0) {
+      // Financial/status transitions only — never used by agenda sync.
       jdbc.update(
           """
           UPDATE installment_snapshots
           SET status = ?,
-              agreement_id = ?,
-              amount = ?,
-              discount_date = ?,
               effective_bank = ?,
               effective_agency = ?,
               effective_account = ?
           WHERE id = ?
           """,
           installment.status().name(),
-          installment.agreementId(),
-          installment.amount().amount(),
-          Date.valueOf(installment.discountDate()),
           installment.effectiveAccount().bank(),
           installment.effectiveAccount().agency(),
           installment.effectiveAccount().account(),
@@ -95,6 +90,23 @@ public class JdbcInstallmentRepository implements InstallmentRepository {
         installment.effectiveAccount().bank(),
         installment.effectiveAccount().agency(),
         installment.effectiveAccount().account());
+  }
+
+  @Override
+  public int updateOpenAgendaAttributes(InstallmentSnapshot installment) {
+    return jdbc.update(
+        """
+        UPDATE installment_snapshots
+        SET agreement_id = ?,
+            amount = ?,
+            discount_date = ?
+        WHERE id = ?
+          AND status = 'OPEN'
+        """,
+        installment.agreementId(),
+        installment.amount().amount(),
+        Date.valueOf(installment.discountDate()),
+        installment.id());
   }
 
   @Override

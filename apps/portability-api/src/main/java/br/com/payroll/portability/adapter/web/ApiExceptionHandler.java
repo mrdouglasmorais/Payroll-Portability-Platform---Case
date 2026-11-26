@@ -36,10 +36,10 @@ public class ApiExceptionHandler {
 
   @ExceptionHandler(IllegalStateException.class)
   public ResponseEntity<Map<String, String>> conflictState(IllegalStateException ex) {
-    if (ex.getMessage() != null && ex.getMessage().startsWith("Installment already reserved")) {
+    if (ex.getMessage() != null && ex.getMessage().startsWith("Parcela já reservada")) {
       return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", ex.getMessage()));
     }
     return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-        .body(Map.of("error", ex.getMessage() == null ? "error" : ex.getMessage()));
+        .body(Map.of("error", ex.getMessage() == null ? "erro" : ex.getMessage()));
   }
 }

@@ -77,7 +77,10 @@ public class CentralPortabilityWorker {
         poll(job);
       } else {
         failTransient(
-            job, "Unknown job type: " + job.jobType(), IntegrationFailureCode.INTEGRATION_ERROR, null);
+            job,
+            "Tipo de job desconhecido: " + job.jobType(),
+            IntegrationFailureCode.INTEGRATION_ERROR,
+            null);
       }
     } catch (StaleFenceException ex) {
       log.info("Stale fence on job {}; skipping financial mutation", job.id());
@@ -85,7 +88,7 @@ public class CentralPortabilityWorker {
       if (ex.isPermanentFailure()) {
         failPermanent(
             job,
-            "Permanent central error: " + ex.getMessage(),
+            "Erro permanente da Central: " + ex.getMessage(),
             IntegrationFailureCode.PERMANENT_CENTRAL_ERROR);
       } else {
         failTransient(
@@ -149,14 +152,15 @@ public class CentralPortabilityWorker {
     if (operation.createdAt().plus(properties.getMaxPollDuration()).isBefore(now)) {
       failPermanent(
           job,
-          "POLL_DEADLINE_EXCEEDED: escalate to reconciliation",
+          "POLL_DEADLINE_EXCEEDED: escalar para reconciliação",
           IntegrationFailureCode.POLL_DEADLINE_EXCEEDED);
       return;
     }
 
     String protocol = operation.centralProtocol();
     if (protocol == null || protocol.isBlank()) {
-      rescheduleAs(job, SUBMIT, "Missing protocol; re-submit", null, properties.getPollDelay());
+      rescheduleAs(
+          job, SUBMIT, "Protocolo ausente; reenviar", null, properties.getPollDelay());
       return;
     }
 
@@ -178,7 +182,7 @@ public class CentralPortabilityWorker {
     if ("REJEITADA".equals(status.status())) {
       String reason =
           status.motivoRejeicao() == null || status.motivoRejeicao().isBlank()
-              ? "Rejected by Central"
+              ? "Rejeitada pela Central"
               : status.motivoRejeicao();
       finalizeOperationService.rejectWithFence(
           operation.id(), reason, job.id(), job.fenceToken(), owner(job));
@@ -187,7 +191,7 @@ public class CentralPortabilityWorker {
 
     failTransient(
         job,
-        "Unexpected central status: " + status.status(),
+        "Status inesperado da Central: " + status.status(),
         IntegrationFailureCode.INTEGRATION_ERROR,
         null);
   }
@@ -256,7 +260,7 @@ public class CentralPortabilityWorker {
 
   private static String sanitizeError(String error) {
     if (error == null || error.isBlank()) {
-      return "unknown error";
+      return "erro desconhecido";
     }
     String trimmed = error.replaceAll("[\\r\\n]+", " ").trim();
     return trimmed.length() > 240 ? trimmed.substring(0, 240) : trimmed;

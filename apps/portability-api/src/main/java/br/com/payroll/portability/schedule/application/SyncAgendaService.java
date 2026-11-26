@@ -45,10 +45,13 @@ public class SyncAgendaService {
     UUID beneficiaryId =
         beneficiaryRepository
             .findIdByExternalRef(beneficiaryExternalRef)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Beneficiary not found"));
+            .orElseThrow(
+                () ->
+                    new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Beneficiário não encontrado"));
 
     if (!consentRepository.hasAcceptedConsent(beneficiaryId)) {
-      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "No accepted consent");
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Não há consentimento aceito");
     }
 
     List<CentralAgendaItem> remote;
@@ -56,12 +59,13 @@ public class SyncAgendaService {
       remote = centralGateway.fetchAgenda(beneficiaryExternalRef, correlationId);
     } catch (CentralException ex) {
       if (ex.statusCode() == 403) {
-        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Central agenda forbidden");
+        throw new ResponseStatusException(
+            HttpStatus.FORBIDDEN, "Agenda da Central proibida");
       }
       if (ex.isTransientFailure()) {
         throw ex;
       }
-      throw new DomainException("Central agenda failed: " + ex.getMessage());
+      throw new DomainException("Falha na agenda da Central: " + ex.getMessage());
     }
 
     List<CentralAgendaItem> authorized =
@@ -83,7 +87,8 @@ public class SyncAgendaService {
       if (existing.isPresent()) {
         InstallmentSnapshot current = existing.get();
         if (current.status() == InstallmentStatus.OPEN) {
-          installmentRepository.save(
+          // Conditional update: never overwrite status or effective_* if portability won the race.
+          installmentRepository.updateOpenAgendaAttributes(
               current.withOpenRefresh(
                   item.convenioId(), Money.of(item.valor()), item.dataDesconto()));
         }

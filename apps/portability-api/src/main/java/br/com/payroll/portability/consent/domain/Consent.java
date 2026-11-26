@@ -37,7 +37,7 @@ public final class Consent {
     Objects.requireNonNull(agreementId, "agreementId");
     Objects.requireNonNull(now, "now");
     if (agreementId.isBlank()) {
-      throw new DomainException("Agreement id is required");
+      throw new DomainException("Identificador do convênio é obrigatório");
     }
     return new Consent(
         UUID.randomUUID(), beneficiaryId, agreementId, null, ConsentStatus.PENDING, now, now);

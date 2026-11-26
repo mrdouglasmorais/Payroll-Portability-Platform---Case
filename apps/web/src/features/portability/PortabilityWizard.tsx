@@ -2,12 +2,27 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { useId, useMemo, useState } from 'react'
 import { api, isApiError, isTerminal } from '../../shared/api/client'
 import type { AgendaItem, ReceivingAccount } from '../../shared/api/types'
+import {
+  formatDiscountDate,
+  formatOccurredAt,
+  labelApiMessage,
+  labelBusinessStatus,
+  labelErrorCode,
+  labelEventType,
+  labelInstallmentStatus,
+} from '../../shared/i18n/labels'
 import { createIdempotencyKey } from '../../shared/lib/idempotency'
 import { maskAccount } from '../../shared/lib/mask'
 
-type Step = 'consent' | 'agenda' | 'destination' | 'review' | 'tracking'
+type Step = 'consentimento' | 'agenda' | 'destino' | 'revisao' | 'acompanhamento'
 
-const STEPS: Step[] = ['consent', 'agenda', 'destination', 'review', 'tracking']
+const STEPS: { id: Step; label: string }[] = [
+  { id: 'consentimento', label: 'Consentimento' },
+  { id: 'agenda', label: 'Agenda' },
+  { id: 'destino', label: 'Destino' },
+  { id: 'revisao', label: 'Revisão' },
+  { id: 'acompanhamento', label: 'Acompanhamento' },
+]
 
 function formatMoney(value: number | string): string {
   const amount = typeof value === 'number' ? value : Number(value)
@@ -19,8 +34,8 @@ function formatMoney(value: number | string): string {
 
 export function PortabilityWizard() {
   const formId = useId()
-  const [step, setStep] = useState<Step>('consent')
-  // ben-ui keeps dedicated OPEN parcels for the operator console (isolated from k6/E2E contention on ben-001).
+  const [step, setStep] = useState<Step>('consentimento')
+  // ben-ui mantém parcelas OPEN dedicadas ao console (isoladas da contenção k6/E2E em ben-001).
   const [beneficiaryId, setBeneficiaryId] = useState('ben-ui')
   const [agreementId, setAgreementId] = useState('conv-1')
   const [authorizationId, setAuthorizationId] = useState<string | null>(null)
@@ -36,7 +51,7 @@ export function PortabilityWizard() {
   const [operationId, setOperationId] = useState<string | null>(null)
   const [banner, setBanner] = useState<string | null>(null)
 
-  const stepIndex = STEPS.indexOf(step)
+  const stepIndex = STEPS.findIndex((item) => item.id === step)
 
   const authorizeMutation = useMutation({
     mutationFn: () =>
@@ -56,9 +71,9 @@ export function PortabilityWizard() {
       setBanner(
         isApiError(error)
           ? error.kind === 'unavailable'
-            ? `Integration issue: ${error.message}`
-            : error.message
-          : 'Authorization failed',
+            ? `Falha de integração: ${labelApiMessage(error.message)}`
+            : labelApiMessage(error.message)
+          : 'Falha na autorização',
       )
     },
   })
@@ -77,27 +92,31 @@ export function PortabilityWizard() {
     onSuccess: (data) => {
       setOperationId(data.operationId)
       setBanner(null)
-      setStep('tracking')
+      setStep('acompanhamento')
     },
     onError: (error) => {
       if (isApiError(error) && error.kind === 'conflict') {
-        setBanner(`Conflict: ${error.message}. Generate a new key only if the payload changed.`)
+        setBanner(
+          `Conflito: ${labelApiMessage(error.message)}. Gere uma nova chave somente se o payload tiver mudado.`,
+        )
         return
       }
       if (isApiError(error) && error.kind === 'unavailable') {
         setBanner(
-          `Integration issue (not a business rejection): ${error.message}. Retry keeps the same idempotency key.`,
+          `Falha de integração (não é rejeição de negócio): ${labelApiMessage(error.message)}. A nova tentativa mantém a mesma chave de idempotência.`,
         )
         return
       }
-      setBanner(isApiError(error) ? error.message : 'Submit failed')
+      setBanner(
+        isApiError(error) ? labelApiMessage(error.message) : 'Falha no envio',
+      )
     },
   })
 
   const statusQuery = useQuery({
     queryKey: ['operation', operationId],
     queryFn: () => api.getOperation(operationId!),
-    enabled: step === 'tracking' && !!operationId,
+    enabled: step === 'acompanhamento' && !!operationId,
     refetchInterval: (query) =>
       isTerminal(query.state.data?.status) ? false : 1500,
   })
@@ -105,7 +124,7 @@ export function PortabilityWizard() {
   const eventsQuery = useQuery({
     queryKey: ['operation-events', operationId],
     queryFn: () => api.getEvents(operationId!),
-    enabled: step === 'tracking' && !!operationId,
+    enabled: step === 'acompanhamento' && !!operationId,
     refetchInterval: () =>
       isTerminal(statusQuery.data?.status) ? false : 1500,
   })
@@ -124,29 +143,29 @@ export function PortabilityWizard() {
   function goDestination() {
     if (agenda.length === 0) {
       setBanner(
-        'No open installments for this beneficiary. Try ben-ui / conv-1, or reset Central demo parcels.',
+        'Não há parcelas abertas para este beneficiário. Tente ben-ui / conv-1 ou reabra as parcelas de demonstração na Central.',
       )
       return
     }
     if (selected.length === 0) {
-      setBanner('Select at least one installment')
+      setBanner('Selecione ao menos uma parcela')
       return
     }
     setBanner(null)
-    setStep('destination')
+    setStep('destino')
   }
 
   function goReview() {
     if (!creditor.trim() || !account.banco || !account.agencia || !account.conta) {
-      setBanner('Destination creditor and account are required')
+      setBanner('Informe o credor cessionário e a conta de recebimento')
       return
     }
     setBanner(null)
-    setStep('review')
+    setStep('revisao')
   }
 
   function startOver() {
-    setStep('consent')
+    setStep('consentimento')
     setAuthorizationId(null)
     setAgenda([])
     setSelected([])
@@ -160,17 +179,17 @@ export function PortabilityWizard() {
   return (
     <section className="wizard" aria-labelledby={`${formId}-title`}>
       <div className="wizard-head">
-        <h2 id={`${formId}-title`}>Portability flow</h2>
-        <ol className="steps" aria-label="Workflow steps">
-          {STEPS.map((name, index) => (
+        <h2 id={`${formId}-title`}>Fluxo de portabilidade</h2>
+        <ol className="steps" aria-label="Etapas do fluxo">
+          {STEPS.map((item, index) => (
             <li
-              key={name}
+              key={item.id}
               className={
                 index === stepIndex ? 'current' : index < stepIndex ? 'done' : undefined
               }
               aria-current={index === stepIndex ? 'step' : undefined}
             >
-              {name}
+              {item.label}
             </li>
           ))}
         </ol>
@@ -182,7 +201,7 @@ export function PortabilityWizard() {
         </p>
       )}
 
-      {step === 'consent' && (
+      {step === 'consentimento' && (
         <form
           className="panel"
           onSubmit={(event) => {
@@ -190,10 +209,12 @@ export function PortabilityWizard() {
             authorizeMutation.mutate()
           }}
         >
-          <h3>1. Opt-in authorization</h3>
-          <p className="hint">Registers consent with the Central via the platform API.</p>
+          <h3>1. Autorização (opt-in)</h3>
+          <p className="hint">
+            Registra o consentimento na Central por meio da API da plataforma.
+          </p>
           <label>
-            Beneficiary id
+            ID do beneficiário
             <input
               name="beneficiarioId"
               value={beneficiaryId}
@@ -203,7 +224,7 @@ export function PortabilityWizard() {
             />
           </label>
           <label>
-            Agreement id
+            ID do convênio
             <input
               name="convenioId"
               value={agreementId}
@@ -213,7 +234,9 @@ export function PortabilityWizard() {
             />
           </label>
           <button type="submit" disabled={authorizeMutation.isPending}>
-            {authorizeMutation.isPending ? 'Authorizing…' : 'Authorize and load agenda'}
+            {authorizeMutation.isPending
+              ? 'Autorizando…'
+              : 'Autorizar e carregar agenda'}
           </button>
         </form>
       )}
@@ -222,12 +245,12 @@ export function PortabilityWizard() {
         <div className="panel">
           <h3>2. Agenda</h3>
           <p className="hint">
-            Authorization <code>{authorizationId}</code>. Select open installments.
+            Autorização <code>{authorizationId}</code>. Selecione parcelas abertas.
           </p>
           {agenda.length === 0 ? (
             <p role="status">
-              No open installments returned from Central for{' '}
-              <code>{beneficiaryId}</code>. Demo beneficiary with reserved OPEN parcels:{' '}
+              A Central não retornou parcelas abertas para <code>{beneficiaryId}</code>.
+              Beneficiário de demonstração com parcelas abertas reservadas:{' '}
               <code>ben-ui</code> / <code>conv-1</code>.
             </p>
           ) : (
@@ -245,7 +268,8 @@ export function PortabilityWizard() {
                       <span>
                         <strong>{item.parcelaId}</strong>
                         <span className="meta">
-                          {formatMoney(item.valor)} · {item.dataDesconto} · {item.status}
+                          {formatMoney(item.valor)} · {formatDiscountDate(item.dataDesconto)} ·{' '}
+                          {labelInstallmentStatus(item.status)}
                         </span>
                       </span>
                     </label>
@@ -255,17 +279,17 @@ export function PortabilityWizard() {
             </ul>
           )}
           <div className="actions">
-            <button type="button" className="ghost" onClick={() => setStep('consent')}>
-              Back
+            <button type="button" className="ghost" onClick={() => setStep('consentimento')}>
+              Voltar
             </button>
             <button type="button" onClick={goDestination}>
-              Continue
+              Continuar
             </button>
           </div>
         </div>
       )}
 
-      {step === 'destination' && (
+      {step === 'destino' && (
         <form
           className="panel"
           onSubmit={(event) => {
@@ -273,9 +297,9 @@ export function PortabilityWizard() {
             goReview()
           }}
         >
-          <h3>3. Destination</h3>
+          <h3>3. Destino</h3>
           <label>
-            Assignee creditor
+            Credor cessionário
             <input
               value={creditor}
               onChange={(e) => setCreditor(e.target.value)}
@@ -285,7 +309,7 @@ export function PortabilityWizard() {
           </label>
           <div className="grid-3">
             <label>
-              Bank
+              Banco
               <input
                 value={account.banco}
                 onChange={(e) => setAccount((a) => ({ ...a, banco: e.target.value }))}
@@ -294,7 +318,7 @@ export function PortabilityWizard() {
               />
             </label>
             <label>
-              Agency
+              Agência
               <input
                 value={account.agencia}
                 onChange={(e) => setAccount((a) => ({ ...a, agencia: e.target.value }))}
@@ -303,7 +327,7 @@ export function PortabilityWizard() {
               />
             </label>
             <label>
-              Account
+              Conta
               <input
                 value={account.conta}
                 onChange={(e) => setAccount((a) => ({ ...a, conta: e.target.value }))}
@@ -314,109 +338,117 @@ export function PortabilityWizard() {
           </div>
           <div className="actions">
             <button type="button" className="ghost" onClick={() => setStep('agenda')}>
-              Back
+              Voltar
             </button>
-            <button type="submit">Review</button>
+            <button type="submit">Revisar</button>
           </div>
         </form>
       )}
 
-      {step === 'review' && (
+      {step === 'revisao' && (
         <div className="panel">
-          <h3>4. Review and submit</h3>
+          <h3>4. Revisão e envio</h3>
           <dl className="review">
             <div>
-              <dt>Beneficiary</dt>
+              <dt>Beneficiário</dt>
               <dd>{beneficiaryId}</dd>
             </div>
             <div>
-              <dt>Installments</dt>
+              <dt>Parcelas</dt>
               <dd>{selectedItems.map((i) => i.parcelaId).join(', ')}</dd>
             </div>
             <div>
-              <dt>Creditor</dt>
+              <dt>Credor</dt>
               <dd>{creditor}</dd>
             </div>
             <div>
-              <dt>Account</dt>
+              <dt>Conta</dt>
               <dd>
                 {account.banco}/{account.agencia}/{maskAccount(account.conta)}
               </dd>
             </div>
             <div>
-              <dt>Idempotency key</dt>
+              <dt>Chave de idempotência</dt>
               <dd>
                 <code>{idempotencyKey}</code>
               </dd>
             </div>
           </dl>
           <p className="hint">
-            Repeated submit reuses the same key to avoid duplicate operations.
+            Reenvios reutilizam a mesma chave para evitar operações duplicadas.
           </p>
           <div className="actions">
-            <button type="button" className="ghost" onClick={() => setStep('destination')}>
-              Back
+            <button type="button" className="ghost" onClick={() => setStep('destino')}>
+              Voltar
             </button>
             <button
               type="button"
               onClick={() => submitMutation.mutate()}
               disabled={submitMutation.isPending}
             >
-              {submitMutation.isPending ? 'Submitting…' : 'Submit portability'}
+              {submitMutation.isPending ? 'Enviando…' : 'Enviar portabilidade'}
             </button>
           </div>
         </div>
       )}
 
-      {step === 'tracking' && operationId && (
+      {step === 'acompanhamento' && operationId && (
         <div className="panel" aria-live="polite">
-          <h3>5. Operation timeline</h3>
+          <h3>5. Linha do tempo da operação</h3>
           <p>
-            Operation <code>{operationId}</code>
+            Operação <code>{operationId}</code>
           </p>
           <p className="status-line">
             Status:{' '}
             <strong data-status={statusQuery.data?.status ?? 'PENDENTE'}>
               {statusQuery.isPending && !statusQuery.data
-                ? 'Loading…'
-                : (statusQuery.data?.status ?? 'PENDENTE')}
+                ? 'Carregando…'
+                : labelBusinessStatus(statusQuery.data?.status)}
             </strong>
             {!isTerminal(statusQuery.data?.status) && (
-              <span className="polling"> · polling local API</span>
+              <span className="polling"> · consultando API local</span>
             )}
           </p>
           {statusQuery.data?.status === 'REJEITADA' && (
             <p className="error" role="status">
-              Business rejection: {statusQuery.data.motivoRejeicao ?? 'No reason provided'}
+              Rejeição de negócio:{' '}
+              {statusQuery.data.motivoRejeicao
+                ? labelApiMessage(statusQuery.data.motivoRejeicao)
+                : 'Motivo não informado'}
             </p>
           )}
           {statusQuery.data?.processing?.requiresAction && (
             <p className="error" role="status">
-              Technical review required ({statusQuery.data.processing.errorCode ?? 'INTEGRATION_ERROR'}
-              , attempts {statusQuery.data.processing.attemptCount}). Business status remains
-              pending — not a rejection.
+              Revisão técnica necessária (
+              {labelErrorCode(statusQuery.data.processing.errorCode)}, tentativas{' '}
+              {statusQuery.data.processing.attemptCount}). O status de negócio permanece
+              pendente — isso não é uma rejeição.
             </p>
           )}
           {statusQuery.data?.status === 'CONFIRMADA' && (
             <p className="ok" role="status">
-              Confirmed by Central. Receiving account effects applied only after verification.
+              Confirmada pela Central. A conta de recebimento só é efetivada após a
+              verificação.
             </p>
           )}
           {statusQuery.isError && (
             <p className="error" role="alert">
-              Integration issue while polling:{' '}
-              {isApiError(statusQuery.error) ? statusQuery.error.message : 'unknown error'}
+              Falha de integração na consulta:{' '}
+              {isApiError(statusQuery.error)
+                ? labelApiMessage(statusQuery.error.message)
+                : 'erro desconhecido'}
             </p>
           )}
-          <h4>Events</h4>
+          <h4>Eventos</h4>
           <ol className="timeline">
             {(eventsQuery.data ?? []).map((event) => (
               <li key={`${event.sequence}-${event.eventType}`}>
                 <span className="seq">{event.sequence}</span>
                 <span>
-                  <strong>{event.eventType}</strong>
+                  <strong>{labelEventType(event.eventType)}</strong>
                   <span className="meta">
-                    {event.description} · {event.occurredAt}
+                    {labelApiMessage(event.description)} ·{' '}
+                    {formatOccurredAt(event.occurredAt)}
                   </span>
                 </span>
               </li>
@@ -424,7 +456,7 @@ export function PortabilityWizard() {
           </ol>
           <div className="actions">
             <button type="button" onClick={startOver}>
-              New operation
+              Nova operação
             </button>
           </div>
         </div>

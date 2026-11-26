@@ -97,18 +97,18 @@ public final class PortabilityOperation {
     Objects.requireNonNull(now, "now");
 
     if (assigneeCreditor.isBlank()) {
-      throw new DomainException("Assignee creditor is required");
+      throw new DomainException("Credor cessionário é obrigatório");
     }
     if (installmentIds.isEmpty()) {
-      throw new DomainException("At least one installment is required");
+      throw new DomainException("Informe ao menos uma parcela");
     }
     if (installmentIds.stream().anyMatch(id -> id == null || id.isBlank())) {
-      throw new DomainException("Installment ids must be non-blank");
+      throw new DomainException("Identificadores de parcela não podem ser vazios");
     }
 
     Set<String> ordered = new LinkedHashSet<>(installmentIds.stream().sorted().toList());
     if (ordered.size() != installmentIds.size()) {
-      throw new DomainException("Installment ids must be distinct");
+      throw new DomainException("Identificadores de parcela devem ser distintos");
     }
 
     PortabilityOperation operation =
@@ -127,7 +127,7 @@ public final class PortabilityOperation {
             1);
     operation.recordEvent(
         "OPERATION_CREATED",
-        "Portability operation created",
+        "Operação de portabilidade criada",
         now);
     return operation;
   }
@@ -135,24 +135,24 @@ public final class PortabilityOperation {
   public void attachProtocol(String protocol, Instant now) {
     requirePending();
     if (protocol == null || protocol.isBlank()) {
-      throw new DomainException("Central protocol is required");
+      throw new DomainException("Protocolo da Central é obrigatório");
     }
     if (this.centralProtocol != null) {
-      throw new DomainException("Central protocol already attached");
+      throw new DomainException("Protocolo da Central já anexado");
     }
     this.centralProtocol = protocol;
     this.updatedAt = now;
-    recordEvent("PROTOCOL_RECEIVED", "Central protocol attached", now);
+    recordEvent("PROTOCOL_RECEIVED", "Protocolo da Central anexado", now);
   }
 
   public void confirm(Instant now) {
     transitionTo(BusinessStatus.CONFIRMADA, null, now);
-    recordEvent("OPERATION_CONFIRMED", "Operation confirmed by Central", now);
+    recordEvent("OPERATION_CONFIRMED", "Operação confirmada pela Central", now);
   }
 
   public void reject(String reason, Instant now) {
     if (reason == null || reason.isBlank()) {
-      throw new DomainException("Rejection reason is required");
+      throw new DomainException("Motivo de rejeição é obrigatório");
     }
     transitionTo(BusinessStatus.REJEITADA, reason, now);
     recordEvent("OPERATION_REJECTED", reason, now);
@@ -170,7 +170,7 @@ public final class PortabilityOperation {
   private void transitionTo(BusinessStatus next, String reason, Instant now) {
     if (!businessStatus.canTransitionTo(next)) {
       throw new DomainException(
-          "Cannot transition from " + businessStatus + " to " + next);
+          "Não é possível transicionar de " + businessStatus + " para " + next);
     }
     this.businessStatus = next;
     this.rejectionReason = reason;
@@ -179,7 +179,7 @@ public final class PortabilityOperation {
 
   private void requirePending() {
     if (businessStatus != BusinessStatus.PENDENTE) {
-      throw new DomainException("Operation is not pending: " + businessStatus);
+      throw new DomainException("Operação não está pendente: " + businessStatus);
     }
   }
 

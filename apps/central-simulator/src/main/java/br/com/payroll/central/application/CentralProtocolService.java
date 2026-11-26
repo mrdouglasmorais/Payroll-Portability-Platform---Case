@@ -235,7 +235,9 @@ public class CentralProtocolService {
         jdbc.query(
             """
             SELECT id, business_status, rejection_reason, fault_mode, confirm_after
-            FROM portability_protocols WHERE protocol = ?
+            FROM portability_protocols
+            WHERE protocol = ?
+            FOR UPDATE
             """,
             (rs, rowNum) ->
                 new ProtocolRow(
@@ -261,31 +263,58 @@ public class CentralProtocolService {
         return ProtocolStatusView.pending();
       }
       if (row.faultMode() == FaultMode.REJECT) {
-        jdbc.update(
-            """
-            UPDATE portability_protocols
-            SET business_status = 'REJEITADA', rejection_reason = ?, updated_at = ?
-            WHERE id = ?
-            """,
-            "Simulated rejection",
-            Timestamp.from(now),
-            row.id());
+        int updated =
+            jdbc.update(
+                """
+                UPDATE portability_protocols
+                SET business_status = 'REJEITADA', rejection_reason = ?, updated_at = ?
+                WHERE id = ? AND business_status = 'PENDENTE'
+                """,
+                "Simulated rejection",
+                Timestamp.from(now),
+                row.id());
+        if (updated != 1) {
+          return reloadStatus(row.id());
+        }
         releaseReservations(row.id(), false);
         return new ProtocolStatusView("REJEITADA", "Simulated rejection", false);
       }
-      jdbc.update(
-          """
-          UPDATE portability_protocols
-          SET business_status = 'CONFIRMADA', updated_at = ?
-          WHERE id = ?
-          """,
-          Timestamp.from(now),
-          row.id());
+      int updated =
+          jdbc.update(
+              """
+              UPDATE portability_protocols
+              SET business_status = 'CONFIRMADA', updated_at = ?
+              WHERE id = ? AND business_status = 'PENDENTE'
+              """,
+              Timestamp.from(now),
+              row.id());
+      if (updated != 1) {
+        return reloadStatus(row.id());
+      }
       consumeReservations(row.id());
       return new ProtocolStatusView("CONFIRMADA", null, false);
     }
 
     return new ProtocolStatusView(row.status(), row.rejectionReason(), false);
+  }
+
+  private ProtocolStatusView reloadStatus(UUID protocolId) {
+    var rows =
+        jdbc.query(
+            """
+            SELECT business_status, rejection_reason
+            FROM portability_protocols WHERE id = ?
+            """,
+            (rs, rowNum) ->
+                new ProtocolStatusView(
+                    rs.getString("business_status"),
+                    rs.getString("rejection_reason"),
+                    false),
+            protocolId);
+    if (rows.isEmpty()) {
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Protocol not found");
+    }
+    return rows.getFirst();
   }
 
   private Optional<Map<String, String>> claimIdempotencyOrFind(String key, String requestHash) {

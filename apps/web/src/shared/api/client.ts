@@ -10,7 +10,7 @@ import type {
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? ''
 
 async function parseError(response: Response): Promise<ApiError> {
-  let message = `Request failed (${response.status})`
+  let message = `Falha na requisição (${response.status})`
   try {
     const body = (await response.json()) as { error?: string }
     if (body.error) {

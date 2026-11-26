@@ -53,7 +53,8 @@ public class HttpCentralGateway implements CentralGateway {
     JsonNode json = readJson(response.getBody());
     String authId = text(json, "autorizacaoId");
     if (authId == null || authId.isBlank()) {
-      throw new CentralException("Central authorization missing autorizacaoId", false, 502);
+      throw new CentralException(
+          "Autorização da Central sem autorizacaoId", false, 502);
     }
     return authId;
   }
@@ -64,7 +65,8 @@ public class HttpCentralGateway implements CentralGateway {
     ResponseEntity<byte[]> response = exchange("GET", path, "", new byte[0], null, correlationId);
     JsonNode root = readJson(response.getBody());
     if (!root.isArray()) {
-      throw new CentralException("Central agenda response is not an array", false, 502);
+      throw new CentralException(
+          "Resposta de agenda da Central não é um array", false, 502);
     }
     List<CentralAgendaItem> items = new ArrayList<>();
     root.forEach(
@@ -97,7 +99,8 @@ public class HttpCentralGateway implements CentralGateway {
     JsonNode json = readJson(response.getBody());
     String protocol = text(json, "protocolo");
     if (protocol == null || protocol.isBlank()) {
-      throw new CentralException("Central portability missing protocolo", false, 502);
+      throw new CentralException(
+          "Portabilidade da Central sem protocolo", false, 502);
     }
     return protocol;
   }
@@ -113,7 +116,8 @@ public class HttpCentralGateway implements CentralGateway {
     String status = text(json, "status");
     String reason = json.path("motivoRejeicao").isNull() ? null : text(json, "motivoRejeicao");
     if (status == null || status.isBlank()) {
-      throw new CentralException("Central status missing status field", true, 502);
+      throw new CentralException(
+          "Status da Central sem campo status", true, 502);
     }
     if ("PENDENTE".equals(status)) {
       return CentralStatus.pending();
@@ -163,16 +167,17 @@ public class HttpCentralGateway implements CentralGateway {
       Duration retryAfter = parseRetryAfter(response);
       if (code >= 500) {
         throw new CentralException(
-            "Central unavailable: HTTP " + code, true, code, retryAfter, null);
+            "Central indisponível: HTTP " + code, true, code, retryAfter, null);
       }
       if (code == 429) {
-        throw new CentralException("Central rate limited", true, 429, retryAfter, null);
+        throw new CentralException(
+            "Central com limite de taxa", true, 429, retryAfter, null);
       }
       if (code == 409) {
-        throw new CentralException("Central conflict", false, 409);
+        throw new CentralException("Conflito na Central", false, 409);
       }
       if (code >= 400 && code != 204) {
-        throw new CentralException("Central client error: HTTP " + code, false, code);
+        throw new CentralException("Erro de cliente na Central: HTTP " + code, false, code);
       }
       return response;
     } catch (CentralException ex) {
@@ -184,13 +189,13 @@ public class HttpCentralGateway implements CentralGateway {
       tryVerifyErrorResponse(method, path, query, ex, nonce, corr);
       boolean transientFailure = code == 429 || code >= 500;
       throw new CentralException(
-          "Central HTTP error: " + code,
+          "Erro HTTP da Central: " + code,
           transientFailure,
           code,
           retryAfter,
           ex);
     } catch (RestClientException ex) {
-      throw new CentralException("Central transport failure", true, 0, ex);
+      throw new CentralException("Falha de transporte com a Central", true, 0, ex);
     }
   }
 
@@ -210,7 +215,13 @@ public class HttpCentralGateway implements CentralGateway {
     String nonce = ex.getResponseHeaders().getFirst("X-Nonce");
     String keyId = ex.getResponseHeaders().getFirst("X-Key-Id");
     if (timestamp == null || nonce == null || keyId == null) {
-      throw new CentralException("Central error response missing HMAC headers", true, 502);
+      throw new CentralException(
+          "Resposta de erro da Central sem cabeçalhos HMAC",
+          true,
+          502,
+          null,
+          IntegrationFailureCode.HMAC_FAILURE,
+          null);
     }
     byte[] body = ex.getResponseBodyAsByteArray();
     String canonical =
@@ -226,7 +237,13 @@ public class HttpCentralGateway implements CentralGateway {
             requestNonce,
             ex.getStatusCode().value());
     if (!signer.verify(canonical, signature)) {
-      throw new CentralException("Central error response signature invalid", true, 502);
+      throw new CentralException(
+          "Assinatura da resposta de erro da Central inválida",
+          true,
+          502,
+          null,
+          IntegrationFailureCode.HMAC_FAILURE,
+          null);
     }
   }
 
@@ -242,7 +259,13 @@ public class HttpCentralGateway implements CentralGateway {
     String nonce = response.getHeaders().getFirst("X-Nonce");
     String keyId = response.getHeaders().getFirst("X-Key-Id");
     if (signature == null || timestamp == null || nonce == null || keyId == null) {
-      throw new CentralException("Central response missing HMAC headers", true, 502);
+      throw new CentralException(
+          "Resposta da Central sem cabeçalhos HMAC",
+          true,
+          502,
+          null,
+          IntegrationFailureCode.HMAC_FAILURE,
+          null);
     }
     byte[] body = response.getBody() == null ? new byte[0] : response.getBody();
     String canonical =
@@ -258,7 +281,13 @@ public class HttpCentralGateway implements CentralGateway {
             requestNonce,
             response.getStatusCode().value());
     if (!signer.verify(canonical, signature)) {
-      throw new CentralException("Central response signature invalid", true, 502);
+      throw new CentralException(
+          "Assinatura da resposta da Central inválida",
+          true,
+          502,
+          null,
+          IntegrationFailureCode.HMAC_FAILURE,
+          null);
     }
   }
 
@@ -266,18 +295,35 @@ public class HttpCentralGateway implements CentralGateway {
     return parseRetryAfterHeader(response.getHeaders().getFirst("Retry-After"));
   }
 
-  private static Duration parseRetryAfterHeader(String value) {
+  /**
+   * Supports delta-seconds and HTTP-date (RFC 9110). Caps wait at 300s. Unsigned 4xx/5xx without
+   * Retry-After fall back to worker backoff.
+   */
+  static Duration parseRetryAfterHeader(String value) {
     if (value == null || value.isBlank()) {
       return null;
     }
+    String trimmed = value.trim();
     try {
-      long seconds = Long.parseLong(value.trim());
+      long seconds = Long.parseLong(trimmed);
       if (seconds < 0) {
         return null;
       }
       return Duration.ofSeconds(Math.min(seconds, 300));
     } catch (NumberFormatException ignored) {
-      return null;
+      try {
+        java.time.ZonedDateTime when =
+            java.time.ZonedDateTime.parse(
+                trimmed, java.time.format.DateTimeFormatter.RFC_1123_DATE_TIME);
+        long seconds =
+            java.time.Duration.between(java.time.Instant.now(), when.toInstant()).getSeconds();
+        if (seconds <= 0) {
+          return Duration.ZERO;
+        }
+        return Duration.ofSeconds(Math.min(seconds, 300));
+      } catch (Exception ignoredDate) {
+        return null;
+      }
     }
   }
 

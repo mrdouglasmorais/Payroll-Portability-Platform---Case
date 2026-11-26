@@ -4,6 +4,8 @@ info:
   version: 0.1.0
   description: |
     Central simulator contract. Requests/responses are HMAC-signed.
+    Idempotency fingerprint is sha256(raw HTTP body UTF-8): retries must be byte-identical.
+    See docs/architecture/idempotency-and-integrity.md.
   license:
     name: Proprietary
     identifier: LicenseRef-Proprietary

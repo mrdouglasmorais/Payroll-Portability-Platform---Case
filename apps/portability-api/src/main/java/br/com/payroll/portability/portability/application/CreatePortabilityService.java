@@ -49,34 +49,34 @@ public class CreatePortabilityService {
     boolean claimOwned = true;
     try {
       if (!consentRepository.hasAcceptedConsent(command.beneficiaryId())) {
-        throw new DomainException("Beneficiary has no accepted consent");
+        throw new DomainException("Beneficiário sem consentimento aceito");
       }
 
       List<InstallmentSnapshot> installments =
           installmentRepository.findByExternalIds(command.externalInstallmentIds());
       if (installments.size() != command.externalInstallmentIds().size()) {
-        throw new DomainException("One or more installments were not found");
+        throw new DomainException("Uma ou mais parcelas não foram encontradas");
       }
 
       LocalDate today = LocalDate.ofInstant(clock.instant(), clock.getZone());
       for (InstallmentSnapshot installment : installments) {
         if (!installment.beneficiaryId().equals(command.beneficiaryId())) {
-          throw new DomainException("Installment does not belong to beneficiary");
+          throw new DomainException("Parcela não pertence ao beneficiário");
         }
         if (installment.status() != InstallmentStatus.OPEN) {
           throw new DomainException(
-              "Installment is not open: " + installment.externalInstallmentId());
+              "Parcela não está aberta: " + installment.externalInstallmentId());
         }
         if (installment.discountDate().isBefore(today)) {
           throw new DomainException(
-              "Installment discount date is not eligible: "
+              "Data de desconto da parcela não é elegível: "
                   + installment.externalInstallmentId());
         }
         if (consentRepository
             .findAccepted(command.beneficiaryId(), installment.agreementId())
             .isEmpty()) {
           throw new DomainException(
-              "No accepted consent for agreement " + installment.agreementId());
+              "Não há consentimento aceito para o convênio " + installment.agreementId());
         }
       }
 

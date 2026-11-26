@@ -10,6 +10,14 @@ public interface InstallmentRepository {
 
   void save(InstallmentSnapshot installment);
 
+  /**
+   * Updates only mutable agenda attributes for rows that are still OPEN. Never touches
+   * status or effective receiving account (avoids racing with portability finalization).
+   *
+   * @return rows updated (0 if the installment left OPEN concurrently)
+   */
+  int updateOpenAgendaAttributes(InstallmentSnapshot installment);
+
   Optional<InstallmentSnapshot> findByExternalId(String externalInstallmentId);
 
   List<InstallmentSnapshot> findByExternalIds(Collection<String> externalIds);

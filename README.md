@@ -29,7 +29,7 @@ docker compose up --build
 
 | Surface | URL |
 | --- | --- |
-| Web console | http://localhost:5173 |
+| Console operacional (UI em pt-BR) | http://localhost:5173 |
 | Portability API health | http://localhost:8080/actuator/health |
 | Portability API status | http://localhost:8080/api/v1/status |
 | Central simulator health | http://localhost:8081/actuator/health |
@@ -58,6 +58,9 @@ cd apps/web && pnpm install && pnpm test && pnpm build
 # Dual-stack E2E (Compose must be healthy)
 ./tests/e2e/dual-stack.sh
 ./tests/e2e/timeout-recovery.sh
+
+# Lab-only: reopen UI/demo parcels (explicit; never a silent Flyway rewrite)
+./scripts/lab-reset-demo-parcels.sh
 
 # Playwright UI (optional)
 cd tests/e2e && pnpm install && pnpm exec playwright install chromium && pnpm test

@@ -53,14 +53,16 @@ public class PortabilityController {
       @RequestHeader("Idempotency-Key") String idempotencyKey,
       @RequestHeader(value = "X-Correlation-Id", required = false) String correlationId) {
     if (idempotencyKey == null || idempotencyKey.isBlank()) {
-      throw new DomainException("Idempotency-Key is required");
+      throw new DomainException("Cabeçalho Idempotency-Key é obrigatório");
     }
     String beneficiaryExternalRef = string(body, "beneficiarioId");
     UUID beneficiaryId =
         beneficiaryRepository
             .findIdByExternalRef(beneficiaryExternalRef)
             .orElseThrow(
-                () -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown beneficiary"));
+                () ->
+                    new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST, "Beneficiário desconhecido"));
 
     @SuppressWarnings("unchecked")
     List<String> parcelas =
@@ -68,7 +70,7 @@ public class PortabilityController {
             ? list.stream().map(Object::toString).toList()
             : List.of();
     if (parcelas.isEmpty()) {
-      throw new DomainException("parcelas required");
+      throw new DomainException("Informe ao menos uma parcela");
     }
     Set<String> parcelaSet = new LinkedHashSet<>(parcelas);
 
@@ -103,7 +105,8 @@ public class PortabilityController {
     PortabilityOperation operation =
         operationRepository
             .findById(operationId)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Not found"));
+            .orElseThrow(
+                () -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Não encontrado"));
     Map<String, Object> body = new LinkedHashMap<>();
     body.put("operationId", operation.id().toString());
     body.put("status", operation.businessStatus().name());
@@ -117,7 +120,7 @@ public class PortabilityController {
   @GetMapping("/api/v1/operacoes-portabilidade/{operationId}/eventos")
   public List<Map<String, Object>> events(@PathVariable UUID operationId) {
     if (operationRepository.findById(operationId).isEmpty()) {
-      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Not found");
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Não encontrado");
     }
     List<Map<String, Object>> events = new ArrayList<>();
     operationRepository
@@ -172,7 +175,7 @@ public class PortabilityController {
   private static String string(Map<String, ?> body, String field) {
     Object value = body.get(field);
     if (value == null || value.toString().isBlank()) {
-      throw new DomainException(field + " is required");
+      throw new DomainException(field + " é obrigatório");
     }
     return value.toString();
   }

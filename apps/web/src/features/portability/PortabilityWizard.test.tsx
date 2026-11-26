@@ -20,7 +20,7 @@ describe('PortabilityWizard', () => {
     vi.restoreAllMocks()
   })
 
-  it('runs consent to agenda and reuses idempotency key on resubmit', async () => {
+  it('percorre consentimento até agenda e reutiliza a chave de idempotência no reenvio', async () => {
     const user = userEvent.setup()
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)
@@ -60,26 +60,26 @@ describe('PortabilityWizard', () => {
     renderWizard()
 
     await user.click(
-      screen.getByRole('button', { name: 'Authorize and load agenda' }),
+      screen.getByRole('button', { name: 'Autorizar e carregar agenda' }),
     )
 
     await screen.findByText('parcela-1')
     await user.click(screen.getByRole('checkbox'))
-    await user.click(screen.getByRole('button', { name: 'Continue' }))
+    await user.click(screen.getByRole('button', { name: 'Continuar' }))
 
-    await user.type(screen.getByLabelText('Assignee creditor'), 'creditor-x')
-    await user.type(screen.getByLabelText('Bank'), '001')
-    await user.type(screen.getByLabelText('Agency'), '1234')
-    await user.type(screen.getByLabelText('Account'), '56789-0')
-    await user.click(screen.getByRole('button', { name: 'Review' }))
+    await user.type(screen.getByLabelText('Credor cessionário'), 'creditor-x')
+    await user.type(screen.getByLabelText('Banco'), '001')
+    await user.type(screen.getByLabelText('Agência'), '1234')
+    await user.type(screen.getByLabelText('Conta'), '56789-0')
+    await user.click(screen.getByRole('button', { name: 'Revisar' }))
 
     expect(screen.getByText(/\*{4}89-0/)).toBeInTheDocument()
 
-    const submit = screen.getByRole('button', { name: 'Submit portability' })
+    const submit = screen.getByRole('button', { name: 'Enviar portabilidade' })
     await user.click(submit)
     await screen.findByRole('alert')
 
-    await user.click(screen.getByRole('button', { name: 'Submit portability' }))
+    await user.click(screen.getByRole('button', { name: 'Enviar portabilidade' }))
 
     await waitFor(() => {
       const posts = fetchMock.mock.calls.filter(
@@ -95,7 +95,7 @@ describe('PortabilityWizard', () => {
     })
   })
 
-  it('stops advertising polling once status is terminal', async () => {
+  it('para de anunciar consulta contínua quando o status é terminal', async () => {
     const user = userEvent.setup()
     let operationCalls = 0
     vi.stubGlobal(
@@ -161,19 +161,19 @@ describe('PortabilityWizard', () => {
     )
 
     renderWizard()
-    await user.click(screen.getByRole('button', { name: 'Authorize and load agenda' }))
+    await user.click(screen.getByRole('button', { name: 'Autorizar e carregar agenda' }))
     await screen.findByText('parcela-1')
     await user.click(screen.getByRole('checkbox'))
-    await user.click(screen.getByRole('button', { name: 'Continue' }))
-    await user.type(screen.getByLabelText('Assignee creditor'), 'creditor-x')
-    await user.type(screen.getByLabelText('Bank'), '001')
-    await user.type(screen.getByLabelText('Agency'), '1234')
-    await user.type(screen.getByLabelText('Account'), '56789-0')
-    await user.click(screen.getByRole('button', { name: 'Review' }))
-    await user.click(screen.getByRole('button', { name: 'Submit portability' }))
+    await user.click(screen.getByRole('button', { name: 'Continuar' }))
+    await user.type(screen.getByLabelText('Credor cessionário'), 'creditor-x')
+    await user.type(screen.getByLabelText('Banco'), '001')
+    await user.type(screen.getByLabelText('Agência'), '1234')
+    await user.type(screen.getByLabelText('Conta'), '56789-0')
+    await user.click(screen.getByRole('button', { name: 'Revisar' }))
+    await user.click(screen.getByRole('button', { name: 'Enviar portabilidade' }))
 
-    await screen.findByText('CONFIRMADA')
-    expect(screen.queryByText(/polling local API/)).not.toBeInTheDocument()
+    await screen.findByText('Confirmada')
+    expect(screen.queryByText(/consultando API local/)).not.toBeInTheDocument()
     const callsAfterTerminal = operationCalls
     await new Promise((r) => setTimeout(r, 1800))
     expect(operationCalls).toBe(callsAfterTerminal)

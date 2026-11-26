@@ -35,10 +35,10 @@ public class RequestAuthorizationService {
 
   public String authorize(String beneficiaryExternalRef, String agreementId, String correlationId) {
     if (beneficiaryExternalRef == null || beneficiaryExternalRef.isBlank()) {
-      throw new DomainException("beneficiarioId is required");
+      throw new DomainException("beneficiarioId é obrigatório");
     }
     if (agreementId == null || agreementId.isBlank()) {
-      throw new DomainException("convenioId is required");
+      throw new DomainException("convenioId é obrigatório");
     }
 
     UUID beneficiaryId =
@@ -57,7 +57,7 @@ public class RequestAuthorizationService {
       if (ex.isTransientFailure()) {
         throw ex;
       }
-      throw new DomainException("Central rejected authorization: " + ex.getMessage());
+      throw new DomainException("Central rejeitou a autorização: " + ex.getMessage());
     }
 
     tx.executeWithoutResult(

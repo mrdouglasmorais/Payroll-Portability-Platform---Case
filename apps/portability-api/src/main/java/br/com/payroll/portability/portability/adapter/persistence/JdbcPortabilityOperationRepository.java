@@ -60,7 +60,7 @@ public class JdbcPortabilityOperationRepository implements PortabilityOperationR
               if (!storedHash.equals(requestHash)) {
                 throw new br.com.payroll.portability.portability.application
                     .IdempotencyConflictException(
-                    "Idempotency key reused with a different payload");
+                    "Chave de idempotência reutilizada com payload diferente");
               }
               String op = rs.getString("operation_id");
               return op == null ? null : UUID.fromString(op);
@@ -154,7 +154,7 @@ public class JdbcPortabilityOperationRepository implements PortabilityOperationR
             Timestamp.from(now));
       } catch (DuplicateKeyException ex) {
         throw new IllegalStateException(
-            "Installment already reserved: " + externalId, ex);
+            "Parcela já reservada: " + externalId, ex);
       }
     }
 

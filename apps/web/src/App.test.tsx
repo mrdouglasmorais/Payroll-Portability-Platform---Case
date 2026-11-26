@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import App from './App'
 
 describe('App', () => {
-  it('renders the operational console brand and wizard', () => {
+  it('renderiza a marca do console operacional e o assistente', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
@@ -27,8 +27,8 @@ describe('App', () => {
       </QueryClientProvider>,
     )
 
-    expect(screen.getByText('Payroll Portability')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Operational console' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Portability flow' })).toBeInTheDocument()
+    expect(screen.getByText('Portabilidade de Folha')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Console operacional' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Fluxo de portabilidade' })).toBeInTheDocument()
   })
 })
