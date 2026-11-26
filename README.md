@@ -184,9 +184,9 @@ Expected by the challenge. Skills live in `.agents/skills/`; sessions in `ai/ses
 
 | Kind | Value |
 | --- | --- |
-| SHA | `bf0c76773fc609c97b3977fc8415defa9cd587d9` |
-| Remote CI | [SUCCESS 8/8](https://github.com/mrdouglasmorais/Payroll-Portability-Platform---Case/actions/runs/45738641426) |
-| Local follow-ups | See `ai/sessions/AI-014-final-release-hardening.md` — do not claim CI for unpublished commits |
+| SHA | `d0dcbbc4f54b315e1f59008f87b81d4781c2c5d6` |
+| Remote CI | [SUCCESS 8/8](https://github.com/mrdouglasmorais/Payroll-Portability-Platform---Case/actions/runs/45740557504) |
+| Session | `ai/sessions/AI-014-final-release-hardening.md` |
 
 ## Known limitations
 

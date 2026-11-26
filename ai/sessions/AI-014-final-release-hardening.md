@@ -69,12 +69,12 @@ portability_operations_total{...,outcome="confirmed"} 3.0
 ## Validation
 
 - Validation: PASS (local on AI-014 working tree)
-- Remote CI for AI-014 changes: NOT_RUN (unpublished; do not claim)
-- Human review / decision: pending human commit/push authorization
-- Commit reference: pending (user-executed)
+- Remote CI for AI-014 tip: PASS — `d0dcbbc` [run 45740557504](https://github.com/mrdouglasmorais/Payroll-Portability-Platform---Case/actions/runs/45740557504) SUCCESS 8/8
+- Human review / decision: performed (candidate); commit authored as Douglas Morais only (no Cursor co-author)
+- Commit reference: `d0dcbbc4f54b315e1f59008f87b81d4781c2c5d6`
 - Remaining risks:
   - Pre-persist Central-accept window not deterministically process-killed
   - V8 still executes on clean Central migrate; V9 does not undo
   - Metrics remain operational/non-accounting
   - A11y is smoke, not WCAG certification
-  - Confirm Actions after human publishes AI-014 SHA
+  - Force-push/cancel-in-progress can surface false Playwright reds mid-run; judge the final tip SHA only

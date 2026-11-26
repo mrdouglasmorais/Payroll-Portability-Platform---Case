@@ -1,6 +1,6 @@
 # Acceptance gates
 
-Status: **DONE** for critical gates on published tip `bf0c767` (remote CI SUCCESS 8/8) plus local AI-014 hardening evidence. Unpublished working-tree changes must not claim remote CI until a new green Actions run.
+Status: **DONE** for critical gates on published tip `d0dcbbc` (remote CI SUCCESS 8/8 — [run 45740557504](https://github.com/mrdouglasmorais/Payroll-Portability-Platform---Case/actions/runs/45740557504)). Unpublished working-tree changes must not claim remote CI until a new green Actions run.
 
 - [x] Consent and scoped agenda, valid installment selection and destination.  
   Evidence: Playwright operator flow; dual-stack authorize/agenda
@@ -23,7 +23,7 @@ Status: **DONE** for critical gates on published tip `bf0c767` (remote CI SUCCES
 - [x] React end-to-end flows and accessibility **smoke** (axe wcag2a/aa + keyboard) across wizard steps on desktop and mobile.  
   Evidence: Playwright — authorization, agenda, selection error, destination, review, status, audit timeline. **Not** a claim of full WCAG 2.2 AA certification.
 - [x] Clean checkout instructions and actual CI/test evidence; documented trade-offs and future work.  
-  Evidence: README; remote CI SUCCESS on `bf0c767` ([run 45738641426](https://github.com/mrdouglasmorais/Payroll-Portability-Platform---Case/actions/runs/45738641426)); local AI-014 gates
+  Evidence: README; remote CI SUCCESS on `d0dcbbc` ([run 45740557504](https://github.com/mrdouglasmorais/Payroll-Portability-Platform---Case/actions/runs/45740557504)); local AI-014 gates
 - [x] AI prompts, constraints, results and human review recorded; no secrets or real data.  
   Evidence: `ai/sessions/AI-000` … `AI-014`; human review performed for financial/release findings (candidate-owned)
 

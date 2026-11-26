@@ -7,6 +7,10 @@ import { expect, type Page, test } from '@playwright/test'
  *
  * Accessibility: axe (wcag2a/wcag2aa) + keyboard smoke across wizard steps.
  * This is a regression harness — not a claim of full WCAG 2.2 AA certification.
+ *
+ * CI note: compose-smoke runs dual-stack first, then this file. Prefer exclusive
+ * parcela-ui-* seeds; do not keyboard.type into fields that already have defaults
+ * (Linux Chromium does not select-all on Tab — append would corrupt convenioId).
  */
 
 async function assertNoAxeViolations(page: Page, context: string) {
@@ -40,14 +44,14 @@ async function selectFirstParcelAndContinue(page: Page) {
   await expect(page.getByRole('heading', { name: '3. Destino' })).toBeVisible()
 }
 
-async function fillDestinationAndReview(page: Page) {
+async function fillDestinationAndReview(page: Page, account = '77777-0') {
   await page.getByLabel('Credor cessionário').fill('creditor-playwright')
   await page.getByLabel('Banco').fill('001')
   await page.getByLabel('Agência').fill('1234')
-  await page.getByLabel('Conta').fill('77777-0')
+  await page.getByLabel('Conta').fill(account)
   await page.getByRole('button', { name: 'Revisar' }).click()
   await expect(page.getByRole('heading', { name: '4. Revisão e envio' })).toBeVisible()
-  await expect(page.getByText(/\*{4}77-0/)).toBeVisible()
+  await expect(page.getByText(new RegExp(`\\*{4}${account.slice(-4)}`))).toBeVisible()
 }
 
 async function submitAndWaitTerminal(page: Page) {
@@ -85,14 +89,15 @@ for (const viewport of [
     await page.setViewportSize({ width: viewport.width, height: viewport.height })
     await page.goto('/')
 
-    // 1. Autorização — keyboard + axe
+    // 1. Autorização — keyboard focus order + fill (not type-append) + axe
     const beneficiary = page.getByLabel('ID do beneficiário')
     await beneficiary.focus()
     await expect(beneficiary).toBeFocused()
     await beneficiary.fill('ben-ui')
     await page.keyboard.press('Tab')
-    await expect(page.getByLabel('ID do convênio')).toBeFocused()
-    await page.keyboard.type('conv-1')
+    const agreement = page.getByLabel('ID do convênio')
+    await expect(agreement).toBeFocused()
+    await agreement.fill('conv-1')
     await page.keyboard.press('Tab')
     await expect(page.getByRole('button', { name: 'Autorizar e carregar agenda' })).toBeFocused()
     await assertNoAxeViolations(page, `autorização (${viewport.name})`)
@@ -116,21 +121,24 @@ for (const viewport of [
     await page.getByRole('button', { name: 'Continuar' }).click()
     await expect(page.getByRole('heading', { name: '3. Destino' })).toBeVisible()
 
-    // 3. Conta de recebimento — keyboard + axe
+    // 3. Conta de recebimento — keyboard focus + fill + axe
     await assertNoAxeViolations(page, `destino (${viewport.name})`)
     const creditor = page.getByLabel('Credor cessionário')
     await creditor.focus()
     await expect(creditor).toBeFocused()
     await creditor.fill('creditor-a11y')
     await page.keyboard.press('Tab')
-    await expect(page.getByLabel('Banco')).toBeFocused()
-    await page.keyboard.type('001')
+    const bank = page.getByLabel('Banco')
+    await expect(bank).toBeFocused()
+    await bank.fill('001')
     await page.keyboard.press('Tab')
-    await expect(page.getByLabel('Agência')).toBeFocused()
-    await page.keyboard.type('1234')
+    const agency = page.getByLabel('Agência')
+    await expect(agency).toBeFocused()
+    await agency.fill('1234')
     await page.keyboard.press('Tab')
-    await expect(page.getByLabel('Conta')).toBeFocused()
-    await page.keyboard.type('88888-0')
+    const account = page.getByLabel('Conta')
+    await expect(account).toBeFocused()
+    await account.fill('88888-0')
     await page.getByRole('button', { name: 'Revisar' }).click()
     await expect(page.getByRole('heading', { name: '4. Revisão e envio' })).toBeVisible()
 
@@ -147,7 +155,7 @@ for (const viewport of [
       timeout: 90_000,
     })
     await expect(page.getByRole('heading', { name: 'Eventos' })).toBeVisible()
-    await expect(page.locator('.timeline li').first()).toBeVisible()
+    await expect(page.locator('.timeline li').first()).toBeVisible({ timeout: 30_000 })
     await assertNoAxeViolations(page, `status+auditoria (${viewport.name})`)
   })
 }

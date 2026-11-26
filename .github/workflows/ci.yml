@@ -94,6 +94,8 @@ jobs:
           cache-dependency-path: tests/e2e/pnpm-lock.yaml
       - name: Compose up smoke
         run: |
+          # Compose substitutes ${VAR:-default}; keep .env present for local parity.
+          test -f .env || cp .env.example .env
           docker compose up -d --build
           for i in $(seq 1 60); do
             if curl -sf http://localhost:8080/actuator/health >/dev/null \
@@ -110,6 +112,7 @@ jobs:
           ./tests/e2e/dual-stack.sh
         timeout-minutes: 25
       # Fresh Compose volumes keep demo parcels OPEN; do not partially reopen PORTED state.
+      # Playwright consumes parcela-ui-* (needs ≥3 OPEN); dual-stack uses other beneficiaries.
       - name: Playwright operator flow and a11y
         working-directory: tests/e2e
         run: |

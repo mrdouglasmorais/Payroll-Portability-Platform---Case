@@ -6,12 +6,12 @@ Engineering status. Quality should be judged from code, tests and recorded comma
 
 | Field | Value |
 |---|---|
-| Published tip (CI green) | `bf0c76773fc609c97b3977fc8415defa9cd587d9` |
-| Remote CI | [SUCCESS 8/8](https://github.com/mrdouglasmorais/Payroll-Portability-Platform---Case/actions/runs/45738641426) on `bf0c767` |
-| Working tree | AI-014 final release hardening (docs + afterCommit metrics + a11y expansion) — **unpublished**; no CI claim until next green Actions |
+| Published tip (CI green) | `d0dcbbc4f54b315e1f59008f87b81d4781c2c5d6` |
+| Remote CI | [SUCCESS 8/8](https://github.com/mrdouglasmorais/Payroll-Portability-Platform---Case/actions/runs/45740557504) on `d0dcbbc` |
+| Working tree | CI hardening follow-up (Playwright fill-safety + evidence tip sync) — unpublished until next commit |
 | Milestone | M10 + AI-014 hardening |
 | Local gates | PASS — Maven 40+9, Vitest 9, dual-stack, timeout-recovery, process-kill, Playwright 3 (AI-014) |
-| Acceptance | DONE on `bf0c767` + local AI-014 residuals closed/documented |
+| Acceptance | DONE on `d0dcbbc` |
 | Human review | Performed for financial/release findings (candidate-owned) |
 
 ## 2. Compliance matrix
@@ -40,7 +40,7 @@ See [compliance-matrix.md](compliance-matrix.md).
 
 | Gate | Result |
 |---|---|
-| GitHub Actions `bf0c767` | SUCCESS 8/8 — [run 45738641426](https://github.com/mrdouglasmorais/Payroll-Portability-Platform---Case/actions/runs/45738641426) |
+| GitHub Actions `d0dcbbc` | SUCCESS 8/8 — [run 45740557504](https://github.com/mrdouglasmorais/Payroll-Portability-Platform---Case/actions/runs/45740557504) |
 
 ### Local (AI-014 working tree — actual)
 
@@ -67,7 +67,7 @@ See [compliance-matrix.md](compliance-matrix.md).
 - Critical window Central-accept → local protocol persist not deterministically killed in CI
 - `V8` demo reopen remains executable on **clean** Central Flyway history; unsafe framing for persistent financial upgrades; prefer exclusive seeds + `compose down -v` for disposable labs
 - Operator auth, soak, production secret management out of scope
-- CI green for AI-014 changes only after human push + Actions
+- Confirm Actions after each subsequent push (cancel-in-progress can look like Playwright failure when force-push interrupts a run)
 
 ## 7. Git
 
