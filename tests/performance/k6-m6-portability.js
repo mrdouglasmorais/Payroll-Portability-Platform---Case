@@ -8,12 +8,19 @@ import { uuidv4 } from 'https://jslib.k6.io/k6-utils/1.4.0/index.js'
  * Contending VUs may exhaust OPEN parcels; empty agenda is treated as a valid
  * contention outcome, not a transport failure. No invented production SLOs.
  *
- *   docker run --rm -i --network host \
- *     -e API_BASE=http://localhost:8080 \
- *     grafana/k6:0.54.0 run - < tests/performance/k6-m6-portability.js
+ * Smoke (default):
+ *   ./scripts/run-k6-m6.sh
+ *
+ * IntelliJ Debug companion (1 VU):
+ *   ./scripts/run-k6-m6.sh debug
+ *
+ * Env overrides: API_BASE, K6_VUS, K6_DURATION, K6_SKIP_THRESHOLDS=1
  */
 
 const apiBase = __ENV.API_BASE || 'http://localhost:8080'
+const vus = Number(__ENV.K6_VUS || 3)
+const duration = __ENV.K6_DURATION || '45s'
+const skipThresholds = __ENV.K6_SKIP_THRESHOLDS === '1'
 const errorRate = new Rate('errors')
 const authorizeMs = new Trend('authorize_ms', true)
 const createMs = new Trend('create_ms', true)
@@ -23,18 +30,24 @@ export const options = {
   scenarios: {
     smoke: {
       executor: 'constant-vus',
-      vus: 3,
-      duration: '45s',
+      vus,
+      duration,
       tags: { scenario: 'smoke' },
     },
   },
-  thresholds: {
-    http_req_failed: ['rate<0.05'],
-    errors: ['rate<0.05'],
-    authorize_ms: ['p(95)<2000'],
-    create_ms: ['p(95)<2000'],
-    status_ms: ['p(95)<1000'],
-  },
+  // Under IntelliJ breakpoints, latency thresholds are noise — skip with K6_SKIP_THRESHOLDS=1.
+  thresholds: skipThresholds
+    ? {
+        http_req_failed: ['rate<0.5'],
+        errors: ['rate<0.5'],
+      }
+    : {
+        http_req_failed: ['rate<0.05'],
+        errors: ['rate<0.05'],
+        authorize_ms: ['p(95)<2000'],
+        create_ms: ['p(95)<2000'],
+        status_ms: ['p(95)<1000'],
+      },
 }
 
 function headers(extra) {

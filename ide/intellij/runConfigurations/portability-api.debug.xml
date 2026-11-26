@@ -1,0 +1,24 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="portability-api [Debug]" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot" nameIsGenerated="false">
+    <option name="ACTIVE_PROFILES" value="" />
+    <option name="ALTERNATIVE_JRE_PATH" value="25" />
+    <option name="ALTERNATIVE_JRE_PATH_ENABLED" value="true" />
+    <option name="MAIN_CLASS_NAME" value="br.com.payroll.portability.PortabilityApiApplication" />
+    <module name="portability-api" />
+    <option name="SHORTEN_COMMAND_LINE" value="ARGS_FILE" />
+    <option name="SPRING_BOOT_MAIN_CLASS" value="br.com.payroll.portability.PortabilityApiApplication" />
+    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/apps/portability-api" />
+    <envs>
+      <env name="SERVER_PORT" value="8080" />
+      <env name="SPRING_DATASOURCE_URL" value="jdbc:postgresql://localhost:5432/portability" />
+      <env name="SPRING_DATASOURCE_USERNAME" value="portability" />
+      <env name="SPRING_DATASOURCE_PASSWORD" value="portability" />
+      <env name="CENTRAL_BASE_URL" value="http://localhost:8081" />
+      <env name="CENTRAL_HMAC_SECRET" value="local-test-hmac-secret" />
+      <env name="CENTRAL_HMAC_KEY_ID" value="local-test-key" />
+    </envs>
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>

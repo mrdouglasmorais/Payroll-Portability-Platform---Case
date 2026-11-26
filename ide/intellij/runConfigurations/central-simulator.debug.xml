@@ -1,0 +1,26 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="central-simulator [Debug]" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot" nameIsGenerated="false">
+    <option name="ACTIVE_PROFILES" value="" />
+    <option name="ALTERNATIVE_JRE_PATH" value="25" />
+    <option name="ALTERNATIVE_JRE_PATH_ENABLED" value="true" />
+    <option name="MAIN_CLASS_NAME" value="br.com.payroll.central.CentralSimulatorApplication" />
+    <module name="central-simulator" />
+    <option name="SHORTEN_COMMAND_LINE" value="ARGS_FILE" />
+    <option name="SPRING_BOOT_MAIN_CLASS" value="br.com.payroll.central.CentralSimulatorApplication" />
+    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/apps/central-simulator" />
+    <envs>
+      <env name="SERVER_PORT" value="8081" />
+      <env name="SPRING_DATASOURCE_URL" value="jdbc:postgresql://localhost:5433/central" />
+      <env name="SPRING_DATASOURCE_USERNAME" value="central" />
+      <env name="SPRING_DATASOURCE_PASSWORD" value="central" />
+      <env name="CENTRAL_HMAC_SECRET" value="local-test-hmac-secret" />
+      <env name="CENTRAL_HMAC_KEY_ID" value="local-test-key" />
+      <env name="CENTRAL_CONFIRM_DELAY" value="PT2S" />
+      <env name="CENTRAL_FAULT_RATE" value="0" />
+      <env name="CENTRAL_FAULT_SEED" value="42" />
+    </envs>
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>
