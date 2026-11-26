@@ -339,7 +339,7 @@ public class HttpCentralGateway implements CentralGateway {
     try {
       return objectMapper.readTree(body == null ? new byte[0] : body);
     } catch (Exception ex) {
-      throw new CentralException("Malformed Central JSON", true, 502, ex);
+      throw new CentralException("JSON da Central malformado", true, 502, ex);
     }
   }
 

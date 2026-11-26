@@ -126,7 +126,12 @@ public class JdbcInstallmentRepository implements InstallmentRepository {
     }
     String placeholders = String.join(",", Collections.nCopies(externalIds.size(), "?"));
     return jdbc.query(
-        "SELECT * FROM installment_snapshots WHERE external_installment_id IN (" + placeholders + ")",
+        """
+        SELECT * FROM installment_snapshots
+        WHERE external_installment_id IN (%s)
+        ORDER BY external_installment_id
+        """
+            .formatted(placeholders),
         MAPPER,
         externalIds.toArray());
   }

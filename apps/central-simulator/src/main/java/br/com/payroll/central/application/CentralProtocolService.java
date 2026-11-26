@@ -12,11 +12,11 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -149,7 +149,8 @@ public class CentralProtocolService {
     String agency = requiredText(account, "agencia");
     String conta = requiredText(account, "conta");
 
-    Set<String> parcelas = new LinkedHashSet<>();
+    // Deterministic order avoids deadlocks when overlapping multi-installment ops race.
+    Set<String> parcelas = new TreeSet<>();
     if (!root.path("parcelas").isArray() || root.path("parcelas").isEmpty()) {
       releaseIdempotencyClaim(idempotencyKey);
       throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "parcelas required");

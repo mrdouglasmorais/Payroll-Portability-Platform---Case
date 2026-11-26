@@ -15,7 +15,10 @@ test('operador autoriza, seleciona parcela, envia e chega a status terminal', as
   await page.getByLabel('ID do convênio').fill('conv-1')
   await page.getByRole('button', { name: 'Autorizar e carregar agenda' }).click()
 
-  await expect(page.getByText(/Autorização/)).toBeVisible({ timeout: 30_000 })
+  // Wait for agenda step (avoid matching the always-visible "1. Autorização" heading).
+  await expect(page.getByRole('heading', { name: '2. Agenda' })).toBeVisible({
+    timeout: 30_000,
+  })
   await expect(page.getByText('parcela-ui-1')).toBeVisible({ timeout: 30_000 })
   const firstCheckbox = page.getByRole('checkbox').first()
   await expect(firstCheckbox).toBeVisible()
@@ -32,6 +35,8 @@ test('operador autoriza, seleciona parcela, envia e chega a status terminal', as
   await page.getByRole('button', { name: 'Enviar portabilidade' }).click()
 
   await expect(page.getByText(/Operação/)).toBeVisible({ timeout: 30_000 })
-  await expect(page.getByText('Confirmada')).toBeVisible({ timeout: 90_000 })
+  await expect(page.locator('[data-status="CONFIRMADA"]')).toHaveText('Confirmada', {
+    timeout: 90_000,
+  })
   await expect(page.getByText(/consultando API local/)).toHaveCount(0)
 })

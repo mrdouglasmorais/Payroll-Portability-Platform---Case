@@ -15,6 +15,7 @@ import br.com.payroll.portability.shared.domain.Money;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -175,6 +176,85 @@ class CreatePortabilityServiceTest {
                     "idem-conflict",
                     "corr-2",
                     "hash-b")));
+  }
+
+  @Test
+  void multiInstallmentReservesInDeterministicExternalIdOrder() {
+    UUID operationId =
+        service.create(
+            new PortabilityCommand(
+                beneficiaryId,
+                Set.of("parcela-2", "parcela-1"),
+                "creditor-x",
+                new ReceivingAccount("001", "1234", "56789-0"),
+                "idem-order",
+                "corr-order",
+                "hash-order"));
+
+    var reservedIds =
+        jdbc.queryForList(
+            """
+            SELECT external_installment_id
+            FROM installment_reservations
+            WHERE operation_id = ?
+            ORDER BY external_installment_id
+            """,
+            String.class,
+            operationId);
+    assertEquals(List.of("parcela-1", "parcela-2"), reservedIds);
+
+    var operationInstallments =
+        jdbc.queryForList(
+            """
+            SELECT external_installment_id
+            FROM operation_installments
+            WHERE operation_id = ?
+            ORDER BY external_installment_id
+            """,
+            String.class,
+            operationId);
+    assertEquals(List.of("parcela-1", "parcela-2"), operationInstallments);
+  }
+
+  @Test
+  void concurrentSameIdempotencyKeyReturnsSingleOperation() throws Exception {
+    var latch = new CountDownLatch(1);
+    var ids = java.util.Collections.synchronizedSet(new java.util.HashSet<UUID>());
+    var errors = new AtomicInteger();
+    try (var executor = Executors.newFixedThreadPool(4)) {
+      List<Future<?>> futures = new java.util.ArrayList<>();
+      for (int i = 0; i < 4; i++) {
+        futures.add(
+            executor.submit(
+                () -> {
+                  try {
+                    latch.await();
+                    UUID id =
+                        service.create(
+                            new PortabilityCommand(
+                                beneficiaryId,
+                                Set.of("parcela-1"),
+                                "creditor-x",
+                                new ReceivingAccount("001", "1234", "56789-0"),
+                                "idem-same-concurrent",
+                                "corr-same",
+                                "hash-same-concurrent"));
+                    ids.add(id);
+                  } catch (Exception ex) {
+                    errors.incrementAndGet();
+                  }
+                }));
+      }
+      latch.countDown();
+      for (Future<?> future : futures) {
+        future.get();
+      }
+    }
+    assertEquals(0, errors.get());
+    assertEquals(1, ids.size());
+    Integer ops =
+        jdbc.queryForObject("SELECT COUNT(*) FROM portability_operations", Integer.class);
+    assertEquals(1, ops);
   }
 
   @Test

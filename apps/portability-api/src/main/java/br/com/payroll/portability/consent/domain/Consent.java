@@ -57,10 +57,11 @@ public final class Consent {
 
   public void accept(String authorizationId, Instant now) {
     if (status != ConsentStatus.PENDING) {
-      throw new DomainException("Only pending consent can be accepted");
+      throw new DomainException("Somente consentimento pendente pode ser aceito");
     }
     if (authorizationId == null || authorizationId.isBlank()) {
-      throw new DomainException("Authorization id is required after Central acceptance");
+      throw new DomainException(
+          "Identificador de autorização é obrigatório após aceite da Central");
     }
     this.authorizationId = authorizationId;
     this.status = ConsentStatus.ACCEPTED;
@@ -69,7 +70,7 @@ public final class Consent {
 
   public void reject(Instant now) {
     if (status != ConsentStatus.PENDING) {
-      throw new DomainException("Only pending consent can be rejected");
+      throw new DomainException("Somente consentimento pendente pode ser rejeitado");
     }
     this.status = ConsentStatus.REJECTED;
     this.updatedAt = now;

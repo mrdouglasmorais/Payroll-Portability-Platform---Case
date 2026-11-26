@@ -11,4 +11,4 @@ Append events for creation, protocol receipt, failure and state transitions, wit
 State and event commit together; prior events remain unchanged.
 
 ## Evidence
-Pending implementation and tests.
+`operation_events` append-only; create atomic tests; dual-stack `/eventos`; fenced failure append (`appendEventsIfNonTerminal`). Re-verify under AI-012.

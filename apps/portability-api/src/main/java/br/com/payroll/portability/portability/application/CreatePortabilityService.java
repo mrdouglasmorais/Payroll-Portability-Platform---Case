@@ -10,6 +10,7 @@ import br.com.payroll.portability.shared.domain.DomainException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -53,7 +54,9 @@ public class CreatePortabilityService {
       }
 
       List<InstallmentSnapshot> installments =
-          installmentRepository.findByExternalIds(command.externalInstallmentIds());
+          installmentRepository.findByExternalIds(command.externalInstallmentIds()).stream()
+              .sorted(Comparator.comparing(InstallmentSnapshot::externalInstallmentId))
+              .toList();
       if (installments.size() != command.externalInstallmentIds().size()) {
         throw new DomainException("Uma ou mais parcelas não foram encontradas");
       }

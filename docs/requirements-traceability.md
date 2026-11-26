@@ -1,6 +1,6 @@
 # Requirements traceability
 
-Source: candidate technical challenge, pp. 1–4. IDs assigned locally. Architectural decisions guided by the Miro [system design](architecture/system-design.md) board.
+Source: original technical challenge, pp. 1–4. IDs assigned locally. Architectural decisions guided by the Miro [system design](architecture/system-design.md) board. Formal status rows: [compliance-matrix.md](compliance-matrix.md).
 
 | Requirement | Specification | Verification |
 |---|---|---|
