@@ -140,8 +140,13 @@ public class CentralProtocolService {
       return claimed.get();
     }
 
-    FaultMode faultMode =
-        faultSelector.select(faultHeader, root.path("beneficiarioId").asText(""));
+    final FaultMode faultMode;
+    try {
+      faultMode = faultSelector.select(faultHeader, root.path("beneficiarioId").asText(""));
+    } catch (IllegalArgumentException ex) {
+      releaseIdempotencyClaim(idempotencyKey);
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ex.getMessage());
+    }
     if (faultMode == FaultMode.UNAVAILABLE) {
       releaseIdempotencyClaim(idempotencyKey);
       throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Simulated outage");

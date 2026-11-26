@@ -41,9 +41,12 @@ public class ApiExceptionHandler {
    */
   @ExceptionHandler(IllegalStateException.class)
   public ResponseEntity<Map<String, String>> conflictState(IllegalStateException ex) {
-    if (isReservationConflict(ex.getMessage())) {
+    if (isInstallmentConflict(ex.getMessage())) {
       return ResponseEntity.status(HttpStatus.CONFLICT)
-          .body(Map.of("error", ex.getMessage() == null ? "Parcela já reservada" : ex.getMessage()));
+          .body(
+              Map.of(
+                  "error",
+                  ex.getMessage() == null ? "Parcela indisponível" : ex.getMessage()));
     }
     return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
         .body(Map.of("error", ex.getMessage() == null ? "erro" : ex.getMessage()));
@@ -62,7 +65,12 @@ public class ApiExceptionHandler {
         .body(Map.of("error", "Conflito de integridade nos dados da operação"));
   }
 
-  private static boolean isReservationConflict(String message) {
-    return message != null && message.startsWith("Parcela já reservada");
+  private static boolean isInstallmentConflict(String message) {
+    if (message == null) {
+      return false;
+    }
+    return message.startsWith("Parcela já reservada")
+        || message.startsWith("Parcela já portada")
+        || message.startsWith("Parcela indisponível");
   }
 }

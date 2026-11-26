@@ -196,6 +196,35 @@ class PortabilityApiWebTest {
   }
 
   @Test
+  void createOnPortedParcelReturns409WithPortedMessage() throws Exception {
+    InstallmentSnapshot ported =
+        installmentRepository.findByExternalId("parcela-web-1").orElseThrow();
+    ported.reserve();
+    installmentRepository.save(ported);
+    ported.markPorted(
+        new br.com.payroll.portability.portability.domain.ReceivingAccount("001", "1234", "999-0"));
+    installmentRepository.save(ported);
+
+    String body =
+        """
+        {
+          "beneficiarioId":"ben-web",
+          "parcelas":["parcela-web-1"],
+          "credorCessionario":"creditor-x",
+          "contaRecebimento":{"banco":"001","agencia":"1234","conta":"999-0"}
+        }
+        """;
+    mockMvc
+        .perform(
+            post("/api/v1/operacoes-portabilidade")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header("Idempotency-Key", "web-idem-ported")
+                .content(body))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.error").value(org.hamcrest.Matchers.containsString("já portada")));
+  }
+
+  @Test
   void idempotencyMismatchReturns409() throws Exception {
     String body1 =
         """

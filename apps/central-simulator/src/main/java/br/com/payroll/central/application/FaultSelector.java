@@ -30,7 +30,12 @@ public final class FaultSelector {
 
   public FaultMode select(String faultHeader, String beneficiaryId) {
     if (faultHeader != null && !faultHeader.isBlank()) {
-      return FaultMode.valueOf(faultHeader.trim().toUpperCase());
+      String normalized = faultHeader.trim().toUpperCase();
+      try {
+        return FaultMode.valueOf(normalized);
+      } catch (IllegalArgumentException ex) {
+        throw new IllegalArgumentException("Invalid X-Sim-Fault: " + faultHeader.trim(), ex);
+      }
     }
     if (beneficiaryId != null) {
       if (beneficiaryId.endsWith("-timeout")) {

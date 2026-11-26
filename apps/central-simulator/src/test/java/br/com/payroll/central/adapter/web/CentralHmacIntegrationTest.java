@@ -64,6 +64,46 @@ class CentralHmacIntegrationTest {
   }
 
   @Test
+  void invalidSignatureDoesNotBurnNonce() throws Exception {
+    String body = "{\"beneficiarioId\":\"ben-001\",\"convenioId\":\"conv-1\"}";
+    String nonce = "reuse-after-bad-sig-" + UUID.randomUUID();
+    String timestamp = Long.toString(clock.instant().toEpochMilli());
+    String correlation = "corr-" + UUID.randomUUID();
+    mockMvc()
+        .perform(
+            post("/autorizacoes")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body)
+                .header("X-Signature", "deadbeef")
+                .header("X-Timestamp", timestamp)
+                .header("X-Nonce", nonce)
+                .header("X-Key-Id", hmacService.keyId())
+                .header("X-Correlation-Id", correlation))
+        .andExpect(status().isForbidden());
+    mockMvc()
+        .perform(signedPost("/autorizacoes", body, nonce, ""))
+        .andExpect(status().isCreated());
+  }
+
+  @Test
+  void invalidSimFaultHeaderReturns400() throws Exception {
+    authorize("ben-001", "conv-1");
+    String body =
+        compact(
+            """
+            {"beneficiarioId":"ben-001","parcelas":["parcela-seed-1"],"credorCessionario":"bank-x",
+            "contaRecebimento":{"banco":"001","agencia":"1234","conta":"99999"}}
+            """);
+    // Use a free parcel from load seeds if seed-1 already reserved by other tests in same class —
+    // this class order may have consumed seed-1; prefer a unique parcel id from V4 if needed.
+    mockMvc()
+        .perform(
+            signedPost("/operacoes-portabilidade", body, null, "idem-bad-fault-" + UUID.randomUUID())
+                .header("X-Sim-Fault", "NOT_A_MODE"))
+        .andExpect(status().isBadRequest());
+  }
+
+  @Test
   void rejectsReplayNonce() throws Exception {
     String body = "{\"beneficiarioId\":\"ben-001\",\"convenioId\":\"conv-1\"}";
     String nonce = "fixed-nonce-" + UUID.randomUUID();

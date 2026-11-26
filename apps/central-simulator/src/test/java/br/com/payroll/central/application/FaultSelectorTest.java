@@ -2,6 +2,7 @@ package br.com.payroll.central.application;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.EnumSet;
@@ -15,6 +16,14 @@ class FaultSelectorTest {
   void headerOverridesSuffixAndRate() {
     FaultSelector selector = new FaultSelector(1.0, 1L);
     assertEquals(FaultMode.TIMEOUT, selector.select("TIMEOUT", "ben-reject"));
+  }
+
+  @Test
+  void invalidHeaderThrowsInsteadOfCrashingUnchecked() {
+    FaultSelector selector = new FaultSelector(0.0, 1L);
+    IllegalArgumentException ex =
+        assertThrows(IllegalArgumentException.class, () -> selector.select("BOOM", "ben-001"));
+    assertTrue(ex.getMessage().contains("Invalid X-Sim-Fault"));
   }
 
   @Test

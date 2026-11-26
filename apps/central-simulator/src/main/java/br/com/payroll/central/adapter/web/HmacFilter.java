@@ -80,11 +80,6 @@ public class HmacFilter extends OncePerRequestFilter {
       return;
     }
 
-    if (!replayGuard.registerIfNew(nonce)) {
-      reject(wrappedRequest, wrappedResponse, "replayed nonce", correlationId, nonce);
-      return;
-    }
-
     String canonical =
         HmacCanonical.requestString(
             wrappedRequest.getMethod(),
@@ -97,8 +92,15 @@ public class HmacFilter extends OncePerRequestFilter {
             correlationId,
             nullToEmpty(idempotencyKey));
 
+    // Verify signature before consuming the nonce — otherwise a bad signature burns a
+    // fresh nonce and blocks a legitimate retry with the same nonce.
     if (!hmacService.verify(canonical, signature)) {
       reject(wrappedRequest, wrappedResponse, "invalid signature", correlationId, nonce);
+      return;
+    }
+
+    if (!replayGuard.registerIfNew(nonce)) {
+      reject(wrappedRequest, wrappedResponse, "replayed nonce", correlationId, nonce);
       return;
     }
 

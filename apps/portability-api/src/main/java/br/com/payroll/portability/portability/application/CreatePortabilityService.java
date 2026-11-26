@@ -71,8 +71,7 @@ public class CreatePortabilityService {
           throw new DomainException("Parcela não pertence ao beneficiário");
         }
         if (installment.status() != InstallmentStatus.OPEN) {
-          throw new IllegalStateException(
-              "Parcela já reservada: " + installment.externalInstallmentId());
+          throw unavailableInstallment(installment.externalInstallmentId(), installment.status());
         }
         if (installment.discountDate().isBefore(today)) {
           throw new DomainException(
@@ -100,8 +99,12 @@ public class CreatePortabilityService {
       // Conditional UPDATE prevents lost races; loser maps to HTTP 409 (never 500).
       for (InstallmentSnapshot installment : installments) {
         if (installmentRepository.reserveIfOpen(installment.id()) != 1) {
-          throw new IllegalStateException(
-              "Parcela já reservada: " + installment.externalInstallmentId());
+          InstallmentStatus current =
+              installmentRepository
+                  .findByExternalId(installment.externalInstallmentId())
+                  .map(InstallmentSnapshot::status)
+                  .orElse(InstallmentStatus.RESERVED);
+          throw unavailableInstallment(installment.externalInstallmentId(), current);
         }
       }
 
@@ -117,5 +120,17 @@ public class CreatePortabilityService {
             IDEMPOTENCY_SCOPE, command.idempotencyKey());
       }
     }
+  }
+
+  private static IllegalStateException unavailableInstallment(
+      String externalId, InstallmentStatus status) {
+    if (status == InstallmentStatus.PORTED) {
+      return new IllegalStateException("Parcela já portada: " + externalId);
+    }
+    if (status == InstallmentStatus.RESERVED) {
+      return new IllegalStateException("Parcela já reservada: " + externalId);
+    }
+    return new IllegalStateException(
+        "Parcela indisponível (" + status + "): " + externalId);
   }
 }
