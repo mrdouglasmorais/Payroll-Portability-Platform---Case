@@ -70,7 +70,7 @@ Legenda do mapa: azul = fundamentos/defesa · verde = as-is · âmbar = to-be.
 
 ```mermaid
 flowchart LR
-  Web["React / Nginx :5173"] --> Api["Portability API :8080"]
+  Web["React / Vite :5173"] --> Api["Portability API :8080"]
   Api --> PlatformDb[(PostgreSQL plataforma)]
   Api -->|HTTP assinado| Central["Central simulada :8081"]
   Central --> CentralDb[(PostgreSQL Central)]
@@ -78,7 +78,7 @@ flowchart LR
 
 - O navegador acessa **somente** a plataforma.
 - Bancos separados; sem transação compartilhada.
-- Stack do lab: Java 25, Spring Boot, JDBC, Flyway, React, Compose.
+- Stack do lab: Java 25, Spring Boot, JDBC, Flyway, React/Vite (Compose `:5173` HMR), Compose. Nginx only for Dockerfile `runtime` static image.
 
 ### Ciclo de vida (frame 07)
 

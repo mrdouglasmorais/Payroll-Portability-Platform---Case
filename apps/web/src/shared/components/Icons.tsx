@@ -34,39 +34,6 @@ export function IconCheck({ className, title }: IconProps) {
   )
 }
 
-export function IconShield({ className }: IconProps) {
-  return <BrandIcon className={className} src="/brand/icon-shield.svg" size={22} />
-}
-
-export function IconWallet({ className }: IconProps) {
-  return <BrandIcon className={className} src="/brand/icon-cart.svg" size={24} />
-}
-
-export function IconList({ className }: IconProps) {
-  return <BrandIcon className={className} src="/brand/icon-bar.svg" size={24} />
-}
-
-export function IconBank({ className }: IconProps) {
-  return <BrandIcon className={className} src="/brand/icon-store-id.svg" size={24} />
-}
-
-export function IconInfo({ className }: IconProps) {
-  return <BrandIcon className={className} src="/brand/icon-info-id.svg" size={16} />
-}
-
-export function IconPeople({ className }: IconProps) {
-  return <BrandIcon className={className} src="/brand/icon-duo.svg" size={24} />
-}
-
-export function IconRoute({ className }: IconProps) {
-  return <BrandIcon className={className} src="/brand/icon-route.svg" size={24} />
-}
-
-/** White+#00AEEF glyph for cyan tiles (Cielo about icons). */
-export function IconMoneyTile({ className }: IconProps) {
-  return <BrandIcon className={className} src="/brand/icon-money-id.svg" size={28} />
-}
-
 export function IconEdit({ className }: IconProps) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -79,12 +46,4 @@ export function IconEdit({ className }: IconProps) {
       />
     </svg>
   )
-}
-
-export function IconArrowRight({ className }: IconProps) {
-  return <BrandIcon className={className} src="/brand/icon-arrow.svg" size={16} />
-}
-
-export function IconSpark({ className }: IconProps) {
-  return <BrandIcon className={className} src="/brand/icon-line.svg" size={24} />
 }

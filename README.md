@@ -101,7 +101,7 @@ Inventário canônico (demos/E2E/k6): ver [docs/architecture/seed-inventory.md](
 
 **Clean seed não está disponível** como migration/script executável. `V11` é só marcador documental (no-op). `parcela-seed-3`/`ben-002` podem existir no histórico `V2` e não entram no inventário canônico.
 
-Após uma confirmação, **não reabra parcialmente** parcelas `PORTED`. Em lab descartável: `docker compose down -v`.
+Após uma confirmação, **não reabra parcialmente** parcelas `PORTED`. Em lab descartável: `docker compose down -v`. Sem wipe, parcelas OPEN extras (não reabre PORTED): `./scripts/lab-seed-extra-ui-parcels.sh`.
 
 ### Flyway V8 / V9 / V11 (Central)
 

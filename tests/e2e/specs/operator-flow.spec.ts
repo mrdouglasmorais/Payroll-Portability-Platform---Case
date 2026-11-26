@@ -8,9 +8,8 @@ import { expect, type Page, test } from '@playwright/test'
  * Accessibility: axe (wcag2a/wcag2aa) + keyboard smoke across wizard steps.
  * This is a regression harness — not a claim of full WCAG 2.2 AA certification.
  *
- * CI note: compose-smoke runs dual-stack first, then this file. Prefer exclusive
- * parcela-ui-* seeds; do not keyboard.type into fields that already have defaults
- * (Linux Chromium does not select-all on Tab — append would corrupt convenioId).
+ * Consent step defaults to demo IDs (ben-ui / conv-1); advanced ID inputs are
+ * behind "Alterar dados". Prefer exclusive parcela-ui-* / lab-seed OPEN rows.
  */
 
 async function assertNoAxeViolations(page: Page, context: string) {
@@ -27,21 +26,34 @@ async function assertNoAxeViolations(page: Page, context: string) {
   ).toEqual([])
 }
 
+async function openAdvancedIds(page: Page) {
+  const toggle = page.getByRole('button', { name: 'Alterar dados' })
+  if (await toggle.isVisible()) {
+    await toggle.click()
+  }
+  await expect(page.getByLabel('ID do beneficiário')).toBeVisible()
+}
+
 async function authorizeToAgenda(page: Page) {
-  await page.getByLabel('ID do beneficiário').fill('ben-ui')
-  await page.getByLabel('ID do convênio').fill('conv-1')
-  await page.getByRole('button', { name: 'Autorizar e carregar agenda' }).click()
-  await expect(page.getByRole('heading', { name: '2. Agenda' })).toBeVisible({
+  // Demo panel already holds ben-ui / conv-1 — authorize without exposing fields.
+  await page.getByRole('button', { name: 'Autorizar e consultar agenda' }).click()
+  await expect(page.getByRole('heading', { name: 'Parcelas elegíveis' })).toBeVisible({
     timeout: 30_000,
   })
 }
 
-async function selectFirstParcelAndContinue(page: Page) {
-  const firstCheckbox = page.getByRole('checkbox').first()
-  await expect(firstCheckbox).toBeVisible({ timeout: 30_000 })
-  await firstCheckbox.check()
+async function selectOpenParcelAndContinue(page: Page) {
+  // Prefer lab-seed extras: canonical parcela-ui-1..4 may still appear OPEN on
+  // Central after platform CONSUMED (dual-DB lab drift). Fall back to any enabled box.
+  const extra = page.getByRole('checkbox', { name: /Selecionar parcela-ui-extra-/ })
+  const checkbox =
+    (await extra.count()) > 0
+      ? extra.first()
+      : page.getByRole('checkbox', { disabled: false }).first()
+  await expect(checkbox).toBeVisible({ timeout: 30_000 })
+  await checkbox.check()
   await page.getByRole('button', { name: 'Continuar' }).click()
-  await expect(page.getByRole('heading', { name: '3. Destino' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Conta de recebimento' })).toBeVisible()
 }
 
 async function fillDestinationAndReview(page: Page, account = '77777-0') {
@@ -50,20 +62,21 @@ async function fillDestinationAndReview(page: Page, account = '77777-0') {
   await page.getByLabel('Agência').fill('1234')
   await page.getByLabel('Conta').fill(account)
   await page.getByRole('button', { name: 'Revisar' }).click()
-  await expect(page.getByRole('heading', { name: '4. Revisão e envio' })).toBeVisible()
-  await expect(page.getByText(new RegExp(`\\*{4}${account.slice(-4)}`))).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Revisão e envio' })).toBeVisible()
+  // Masked account appears in review + summary sidebar — assert first match.
+  await expect(page.getByText(new RegExp(`\\*{4}${account.slice(-4)}`)).first()).toBeVisible()
 }
 
 async function submitAndWaitTerminal(page: Page) {
   await page.getByRole('button', { name: 'Enviar portabilidade' }).click()
-  await expect(page.getByRole('heading', { name: '5. Linha do tempo da operação' })).toBeVisible({
+  await expect(page.getByRole('heading', { name: 'Resultado e auditoria' })).toBeVisible({
     timeout: 30_000,
   })
   await expect(page.locator('[data-status]')).toBeVisible({ timeout: 30_000 })
   await expect(page.locator('[data-status="CONFIRMADA"]')).toHaveText('Confirmada', {
     timeout: 90_000,
   })
-  await expect(page.getByText(/consultando API local/)).toHaveCount(0)
+  await expect(page.getByText(/consultando API/)).toHaveCount(0)
   await expect(page.getByRole('heading', { name: 'Eventos' })).toBeVisible()
 }
 
@@ -72,11 +85,11 @@ test('operador autoriza, seleciona parcela, envia e chega a status terminal', as
 }) => {
   await page.setViewportSize({ width: 1280, height: 800 })
   await page.goto('/')
-  await expect(page.getByRole('heading', { name: 'Console operacional' })).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'Fluxo de portabilidade' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Nova operação' })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Fluxo de portabilidade' })).toBeVisible()
 
   await authorizeToAgenda(page)
-  await selectFirstParcelAndContinue(page)
+  await selectOpenParcelAndContinue(page)
   await fillDestinationAndReview(page)
   await submitAndWaitTerminal(page)
 })
@@ -89,7 +102,8 @@ for (const viewport of [
     await page.setViewportSize({ width: viewport.width, height: viewport.height })
     await page.goto('/')
 
-    // 1. Autorização — keyboard focus order + fill (not type-append) + axe
+    // 1. Autorização — open advanced IDs for keyboard focus order + fill + axe
+    await openAdvancedIds(page)
     const beneficiary = page.getByLabel('ID do beneficiário')
     await beneficiary.focus()
     await expect(beneficiary).toBeFocused()
@@ -99,11 +113,11 @@ for (const viewport of [
     await expect(agreement).toBeFocused()
     await agreement.fill('conv-1')
     await page.keyboard.press('Tab')
-    await expect(page.getByRole('button', { name: 'Autorizar e carregar agenda' })).toBeFocused()
+    await expect(page.getByRole('button', { name: 'Autorizar e consultar agenda' })).toBeFocused()
     await assertNoAxeViolations(page, `autorização (${viewport.name})`)
 
-    await page.getByRole('button', { name: 'Autorizar e carregar agenda' }).click()
-    await expect(page.getByRole('heading', { name: '2. Agenda' })).toBeVisible({
+    await page.getByRole('button', { name: 'Autorizar e consultar agenda' }).click()
+    await expect(page.getByRole('heading', { name: 'Parcelas elegíveis' })).toBeVisible({
       timeout: 30_000,
     })
 
@@ -113,13 +127,17 @@ for (const viewport of [
     await expect(page.getByRole('alert')).toContainText('Selecione ao menos uma parcela')
     await assertNoAxeViolations(page, `erro seleção (${viewport.name})`)
 
-    const firstCheckbox = page.getByRole('checkbox').first()
-    await expect(firstCheckbox).toBeVisible({ timeout: 30_000 })
-    await firstCheckbox.focus()
-    await expect(firstCheckbox).toBeFocused()
-    await firstCheckbox.check()
+    const extra = page.getByRole('checkbox', { name: /Selecionar parcela-ui-extra-/ })
+    const checkbox =
+      (await extra.count()) > 0
+        ? extra.first()
+        : page.getByRole('checkbox', { disabled: false }).first()
+    await expect(checkbox).toBeVisible({ timeout: 30_000 })
+    await checkbox.focus()
+    await expect(checkbox).toBeFocused()
+    await checkbox.check()
     await page.getByRole('button', { name: 'Continuar' }).click()
-    await expect(page.getByRole('heading', { name: '3. Destino' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Conta de recebimento' })).toBeVisible()
 
     // 3. Conta de recebimento — keyboard focus + fill + axe
     await assertNoAxeViolations(page, `destino (${viewport.name})`)
@@ -140,15 +158,15 @@ for (const viewport of [
     await expect(account).toBeFocused()
     await account.fill('88888-0')
     await page.getByRole('button', { name: 'Revisar' }).click()
-    await expect(page.getByRole('heading', { name: '4. Revisão e envio' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Revisão e envio' })).toBeVisible()
 
     // 4. Revisão
     await assertNoAxeViolations(page, `revisão (${viewport.name})`)
-    await expect(page.getByText(/\*{4}88-0/)).toBeVisible()
+    await expect(page.getByText(/\*{4}88-0/).first()).toBeVisible()
     await page.getByRole('button', { name: 'Enviar portabilidade' }).click()
 
     // 5. Status + auditoria (eventos)
-    await expect(page.getByRole('heading', { name: '5. Linha do tempo da operação' })).toBeVisible({
+    await expect(page.getByRole('heading', { name: 'Resultado e auditoria' })).toBeVisible({
       timeout: 30_000,
     })
     await expect(page.locator('[data-status="CONFIRMADA"]')).toHaveText('Confirmada', {

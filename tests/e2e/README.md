@@ -41,7 +41,13 @@ Optional env: `API_BASE`, `POLL_ATTEMPTS`, `POLL_SLEEP_SEC`.
 
 ## Playwright (operator UI + a11y smoke)
 
-Happy path plus axe (`wcag2a`/`wcag2aa`) and keyboard checks across authorization, agenda, selection error, destination, review, status and audit timeline — desktop and mobile viewports. Prefer clean Compose volumes (`down -v`) so `parcela-ui-*` remain OPEN. This is accessibility **smoke**, not WCAG certification.
+Happy path plus axe (`wcag2a`/`wcag2aa`) and keyboard checks across authorization, agenda, selection error, destination, review, status and audit timeline — desktop and mobile viewports. Prefer clean Compose volumes (`down -v`) so `parcela-ui-*` remain OPEN. If parcels were already ported without wiping volumes, seed **additional** OPEN rows (never reopen PORTED):
+
+```bash
+./scripts/lab-seed-extra-ui-parcels.sh
+```
+
+This is accessibility **smoke**, not WCAG certification.
 
 ```bash
 cd tests/e2e
