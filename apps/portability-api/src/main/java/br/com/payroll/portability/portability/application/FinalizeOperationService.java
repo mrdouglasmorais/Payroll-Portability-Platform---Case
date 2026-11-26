@@ -5,17 +5,24 @@ import br.com.payroll.portability.portability.domain.PortabilityOperation;
 import br.com.payroll.portability.portability.domain.ReceivingAccount;
 import br.com.payroll.portability.schedule.application.InstallmentRepository;
 import br.com.payroll.portability.schedule.domain.InstallmentSnapshot;
+import br.com.payroll.portability.shared.observability.LogEvents;
+import br.com.payroll.portability.shared.observability.LogFields;
 import br.com.payroll.portability.shared.observability.PortabilityTelemetry;
+import br.com.payroll.portability.shared.observability.SensitiveData;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class FinalizeOperationService {
+
+  private static final Logger log = LoggerFactory.getLogger(FinalizeOperationService.class);
 
   private final PortabilityOperationRepository operationRepository;
   private final InstallmentRepository installmentRepository;
@@ -81,6 +88,14 @@ public class FinalizeOperationService {
       throw new StaleFenceException("Fence lost after financial confirm");
     }
     telemetry.operationConfirmed();
+    ReceivingAccount dest = operation.receivingAccount();
+    // operationId/correlationId already in MDC during worker; do not duplicate key-values (ECS).
+    log.atInfo()
+        .addKeyValue(LogFields.EVENT, LogEvents.PORTABILITY_CONFIRMED)
+        .addKeyValue(LogFields.RECEIVING_BANK, dest.bank())
+        .addKeyValue(LogFields.RECEIVING_AGENCY_MASKED, SensitiveData.maskAgency(dest.agency()))
+        .addKeyValue(LogFields.RECEIVING_ACCOUNT_MASKED, SensitiveData.maskAccount(dest.account()))
+        .log("Portability confirmed");
     return true;
   }
 
@@ -128,6 +143,10 @@ public class FinalizeOperationService {
       throw new StaleFenceException("Fence lost after financial reject");
     }
     telemetry.operationRejected();
+    log.atInfo()
+        .addKeyValue(LogFields.EVENT, LogEvents.PORTABILITY_REJECTED)
+        .addKeyValue(LogFields.REJECTION_REASON, reason)
+        .log("Portability rejected");
     return true;
   }
 

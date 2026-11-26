@@ -28,6 +28,10 @@ public class HttpCentralGateway implements CentralGateway {
   private final ObjectMapper objectMapper;
   private final Clock clock;
 
+  /**
+   * Builds from the shared {@link RestClient.Builder} bean (ObservationRegistry → OTel) so
+   * {@code traceparent} is propagated without altering HMAC canonical headers.
+   */
   public HttpCentralGateway(
       RestClient.Builder restClientBuilder,
       CentralProperties properties,
@@ -35,7 +39,7 @@ public class HttpCentralGateway implements CentralGateway {
       ObjectMapper objectMapper,
       Clock clock) {
     this.restClient =
-        restClientBuilder.baseUrl(properties.getBaseUrl().replaceAll("/$", "")).build();
+        restClientBuilder.clone().baseUrl(properties.getBaseUrl().replaceAll("/$", "")).build();
     this.signer = signer;
     this.objectMapper = objectMapper;
     this.clock = clock;

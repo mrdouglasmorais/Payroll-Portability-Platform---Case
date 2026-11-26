@@ -13,7 +13,12 @@ import br.com.payroll.portability.portability.application.ProcessingJob;
 import br.com.payroll.portability.portability.application.ProcessingJobRepository;
 import br.com.payroll.portability.portability.application.StaleFenceException;
 import br.com.payroll.portability.portability.domain.PortabilityOperation;
+import br.com.payroll.portability.shared.observability.LogEvents;
+import br.com.payroll.portability.shared.observability.LogFields;
+import br.com.payroll.portability.shared.observability.PortabilityLog;
 import br.com.payroll.portability.shared.observability.PortabilityTelemetry;
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationRegistry;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -21,6 +26,7 @@ import java.util.ArrayList;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -40,6 +46,7 @@ public class CentralPortabilityWorker {
   private final CentralProperties properties;
   private final Clock clock;
   private final PortabilityTelemetry telemetry;
+  private final ObservationRegistry observationRegistry;
   private final String workerId = "worker-" + UUID.randomUUID();
 
   public CentralPortabilityWorker(
@@ -50,7 +57,8 @@ public class CentralPortabilityWorker {
       CentralGateway centralGateway,
       CentralProperties properties,
       Clock clock,
-      PortabilityTelemetry telemetry) {
+      PortabilityTelemetry telemetry,
+      ObservationRegistry observationRegistry) {
     this.jobRepository = jobRepository;
     this.operationRepository = operationRepository;
     this.beneficiaryRepository = beneficiaryRepository;
@@ -59,6 +67,7 @@ public class CentralPortabilityWorker {
     this.properties = properties;
     this.clock = clock;
     this.telemetry = telemetry;
+    this.observationRegistry = observationRegistry;
   }
 
   @Scheduled(fixedDelayString = "${app.central.worker-tick:PT1S}")
@@ -78,52 +87,77 @@ public class CentralPortabilityWorker {
   }
 
   void processClaimed(ProcessingJob job) {
-    try {
-      if (SUBMIT.equals(job.jobType())) {
-        submit(job);
-      } else if (POLL.equals(job.jobType())) {
-        poll(job);
-      } else {
-        failTransient(
-            job,
-            "Tipo de job desconhecido: " + job.jobType(),
-            IntegrationFailureCode.INTEGRATION_ERROR,
-            null);
-      }
-    } catch (StaleFenceException ex) {
-      telemetry.staleFence();
-      log.info("Stale fence on job {}; skipping financial mutation", job.id());
-    } catch (CentralException ex) {
-      if (ex.isPermanentFailure()) {
-        telemetry.centralPermanentFailure();
-        failPermanent(
-            job,
-            "Erro permanente da Central: " + ex.getMessage(),
-            IntegrationFailureCode.PERMANENT_CENTRAL_ERROR);
-      } else {
-        telemetry.centralTransientFailure();
+    Observation observation =
+        Observation.createNotStarted("portability.job", observationRegistry)
+            .lowCardinalityKeyValue("job.type", job.jobType());
+    observation.start();
+    String outcome = "error";
+    try (Observation.Scope scope = observation.openScope()) {
+      putJobMdc(job);
+      try {
+        operationRepository
+            .findById(job.operationId())
+            .ifPresent(op -> putCorrelationMdc(op.correlationId()));
+        if (SUBMIT.equals(job.jobType())) {
+          outcome = submit(job);
+        } else if (POLL.equals(job.jobType())) {
+          outcome = poll(job);
+        } else {
+          failTransient(
+              job,
+              "Tipo de job desconhecido: " + job.jobType(),
+              IntegrationFailureCode.INTEGRATION_ERROR,
+              null);
+          outcome = "unknown_type";
+        }
+      } catch (StaleFenceException ex) {
+        telemetry.staleFence();
+        PortabilityLog.warn(
+            log, LogEvents.JOB_FENCE_STALE, "Stale fence; skipping financial mutation");
+        outcome = "stale_fence";
+      } catch (CentralException ex) {
+        if (ex.isPermanentFailure()) {
+          telemetry.centralPermanentFailure();
+          failPermanent(
+              job,
+              "Erro permanente da Central: " + ex.getMessage(),
+              IntegrationFailureCode.PERMANENT_CENTRAL_ERROR);
+          outcome = "permanent_failure";
+        } else {
+          telemetry.centralTransientFailure();
+          failTransient(
+              job,
+              sanitizeError(ex.getMessage()),
+              IntegrationFailureCode.fromCentral(ex),
+              ex.retryAfter());
+          outcome = "transient_failure";
+        }
+      } catch (RuntimeException ex) {
+        log.atWarn()
+            .addKeyValue(LogFields.EVENT, LogEvents.CENTRAL_CALL_FAILED)
+            .setCause(ex)
+            .log("Worker failure");
         failTransient(
             job,
             sanitizeError(ex.getMessage()),
-            IntegrationFailureCode.fromCentral(ex),
-            ex.retryAfter());
+            IntegrationFailureCode.INTEGRATION_ERROR,
+            null);
+        outcome = "runtime_failure";
+      } finally {
+        clearJobMdc();
       }
-    } catch (RuntimeException ex) {
-      log.warn("Worker failure on job {}", job.id(), ex);
-      failTransient(
-          job,
-          sanitizeError(ex.getMessage()),
-          IntegrationFailureCode.INTEGRATION_ERROR,
-          null);
+    } finally {
+      observation.lowCardinalityKeyValue("outcome", outcome);
+      observation.stop();
     }
   }
 
-  private void submit(ProcessingJob job) {
+  private String submit(ProcessingJob job) {
     PortabilityOperation operation =
         operationRepository.findById(job.operationId()).orElseThrow();
     if (operation.centralProtocol() != null) {
       reschedulePoll(job, null, null);
-      return;
+      return "already_submitted";
     }
 
     String externalRef =
@@ -142,21 +176,35 @@ public class CentralPortabilityWorker {
             operation.receivingAccount().agency(),
             operation.receivingAccount().account());
 
-    String protocol =
-        centralGateway.submitPortability(request, idempotencyKey, operation.correlationId());
+    try {
+      String protocol =
+          centralGateway.submitPortability(request, idempotencyKey, operation.correlationId());
 
-    finalizeOperationService.attachProtocolWithFence(
-        operation.id(), protocol, job.id(), job.fenceToken(), owner(job));
-    reschedulePoll(job, null, null);
+      finalizeOperationService.attachProtocolWithFence(
+          operation.id(), protocol, job.id(), job.fenceToken(), owner(job));
+      log.atInfo()
+          .addKeyValue(LogFields.EVENT, LogEvents.CENTRAL_SUBMIT_ACCEPTED)
+          .addKeyValue(LogFields.PROTOCOL, protocol)
+          .log("Central accepted submit");
+      reschedulePoll(job, null, null);
+      return "submitted";
+    } catch (CentralException ex) {
+      log.atWarn()
+          .addKeyValue(LogFields.EVENT, LogEvents.CENTRAL_CALL_FAILED)
+          .addKeyValue(LogFields.ERROR_CODE, IntegrationFailureCode.fromCentral(ex).name())
+          .addKeyValue(LogFields.ATTEMPT, String.valueOf(job.attemptCount() + 1))
+          .log("Central submit failed");
+      throw ex;
+    }
   }
 
-  private void poll(ProcessingJob job) {
+  private String poll(ProcessingJob job) {
     PortabilityOperation operation =
         operationRepository.findById(job.operationId()).orElseThrow();
     if (operation.businessStatus().isTerminal()) {
       jobRepository.markSucceededIfOwned(
           job.id(), job.fenceToken(), owner(job), clock.instant());
-      return;
+      return "already_terminal";
     }
 
     Instant now = clock.instant();
@@ -165,30 +213,46 @@ public class CentralPortabilityWorker {
           job,
           "POLL_DEADLINE_EXCEEDED: escalar para reconciliação",
           IntegrationFailureCode.POLL_DEADLINE_EXCEEDED);
-      return;
+      return "poll_deadline";
     }
 
     String protocol = operation.centralProtocol();
     if (protocol == null || protocol.isBlank()) {
       rescheduleAs(
           job, SUBMIT, "Protocolo ausente; reenviar", null, properties.getPollDelay());
-      return;
+      return "resubmit";
     }
 
-    CentralStatus status = centralGateway.pollStatus(protocol, operation.correlationId());
+    CentralStatus status;
+    try {
+      status = centralGateway.pollStatus(protocol, operation.correlationId());
+    } catch (CentralException ex) {
+      log.atWarn()
+          .addKeyValue(LogFields.EVENT, LogEvents.CENTRAL_CALL_FAILED)
+          .addKeyValue(LogFields.ERROR_CODE, IntegrationFailureCode.fromCentral(ex).name())
+          .addKeyValue(LogFields.ATTEMPT, String.valueOf(job.attemptCount() + 1))
+          .addKeyValue(LogFields.PROTOCOL, protocol)
+          .log("Central poll failed");
+      throw ex;
+    }
+
     if (status.awaiting()) {
       Duration delay =
           status.retryAfter() != null && !status.retryAfter().isZero()
               ? status.retryAfter()
               : properties.getPollDelay();
+      log.atInfo()
+          .addKeyValue(LogFields.EVENT, LogEvents.CENTRAL_POLL_PENDING)
+          .addKeyValue(LogFields.PROTOCOL, protocol)
+          .log("Central still pending");
       reschedulePoll(job, null, delay);
-      return;
+      return "pending";
     }
 
     if ("CONFIRMADA".equals(status.status())) {
       finalizeOperationService.confirmWithFence(
           operation.id(), job.id(), job.fenceToken(), owner(job));
-      return;
+      return "confirmed";
     }
     if ("REJEITADA".equals(status.status())) {
       String reason =
@@ -197,7 +261,7 @@ public class CentralPortabilityWorker {
               : status.motivoRejeicao();
       finalizeOperationService.rejectWithFence(
           operation.id(), reason, job.id(), job.fenceToken(), owner(job));
-      return;
+      return "rejected";
     }
 
     failTransient(
@@ -205,6 +269,7 @@ public class CentralPortabilityWorker {
         "Status inesperado da Central: " + status.status(),
         IntegrationFailureCode.INTEGRATION_ERROR,
         null);
+    return "unexpected_status";
   }
 
   private void reschedulePoll(ProcessingJob job, String error, Duration delayOverride) {
@@ -240,6 +305,11 @@ public class CentralPortabilityWorker {
       jobRepository.markExhausted(
           job.id(), job.fenceToken(), sanitized, code.name(), now);
       telemetry.jobExhausted();
+      log.atError()
+          .addKeyValue(LogFields.EVENT, LogEvents.JOB_EXHAUSTED)
+          .addKeyValue(LogFields.ERROR_CODE, code.name())
+          .addKeyValue(LogFields.ATTEMPT, String.valueOf(attempts))
+          .log("Job exhausted; requires review");
       return;
     }
     Duration backoff =
@@ -265,6 +335,33 @@ public class CentralPortabilityWorker {
         job.operationId(), job.id(), job.fenceToken(), owner(job), sanitized);
     jobRepository.markExhausted(job.id(), job.fenceToken(), sanitized, code.name(), now);
     telemetry.jobExhausted();
+    log.atError()
+        .addKeyValue(LogFields.EVENT, LogEvents.JOB_EXHAUSTED)
+        .addKeyValue(LogFields.ERROR_CODE, code.name())
+        .log("Job permanently exhausted; requires review");
+  }
+
+  private static void putJobMdc(ProcessingJob job) {
+    MDC.put(LogFields.OPERATION_ID, job.operationId().toString());
+    MDC.put(LogFields.JOB_ID, job.id().toString());
+    MDC.put(LogFields.ATTEMPT, String.valueOf(job.attemptCount()));
+    MDC.put(LogFields.FENCE_TOKEN, String.valueOf(job.fenceToken()));
+    MDC.put(LogFields.JOB_TYPE, job.jobType());
+  }
+
+  private static void putCorrelationMdc(String correlationId) {
+    if (correlationId != null && !correlationId.isBlank()) {
+      MDC.put(LogFields.CORRELATION_ID, correlationId);
+    }
+  }
+
+  private static void clearJobMdc() {
+    MDC.remove(LogFields.OPERATION_ID);
+    MDC.remove(LogFields.JOB_ID);
+    MDC.remove(LogFields.CORRELATION_ID);
+    MDC.remove(LogFields.ATTEMPT);
+    MDC.remove(LogFields.FENCE_TOKEN);
+    MDC.remove(LogFields.JOB_TYPE);
   }
 
   private static String owner(ProcessingJob job) {

@@ -32,6 +32,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -119,6 +120,26 @@ class CentralPortabilityWorkerTest {
             Money.of("100.00"),
             LocalDate.of(2026, 12, 10),
             InstallmentStatus.OPEN));
+  }
+
+  @Test
+  void processClaimedPutsJobIdsInMdcThenClears() {
+    FakeCentral.INSTANCE.mode = FakeCentral.Mode.CONFIRM;
+    UUID operationId = createOp("idem-mdc");
+    ProcessingJob submit =
+        jobRepository.claimNext("test", clock.instant(), clock.instant().plusSeconds(30)).orElseThrow();
+
+    assertNull(MDC.get("operationId"));
+    assertNull(MDC.get("jobId"));
+    worker.processClaimed(submit);
+
+    assertEquals(operationId.toString(), FakeCentral.INSTANCE.mdcOperationId.get());
+    assertEquals(submit.id().toString(), FakeCentral.INSTANCE.mdcJobId.get());
+    assertNull(MDC.get("operationId"));
+    assertNull(MDC.get("jobId"));
+    assertNull(MDC.get("correlationId"));
+    assertNull(MDC.get("attempt"));
+    assertNull(MDC.get("fenceToken"));
   }
 
   @Test
@@ -381,6 +402,8 @@ class CentralPortabilityWorkerTest {
     final java.util.concurrent.ConcurrentHashMap<String, String> byIdempotency =
         new java.util.concurrent.ConcurrentHashMap<>();
     final AtomicInteger dropRemaining = new AtomicInteger(0);
+    final AtomicReference<String> mdcOperationId = new AtomicReference<>();
+    final AtomicReference<String> mdcJobId = new AtomicReference<>();
 
     void reset() {
       mode = Mode.CONFIRM;
@@ -388,6 +411,8 @@ class CentralPortabilityWorkerTest {
       protocol.set(null);
       byIdempotency.clear();
       dropRemaining.set(0);
+      mdcOperationId.set(null);
+      mdcJobId.set(null);
     }
 
     @Override
@@ -404,6 +429,8 @@ class CentralPortabilityWorkerTest {
     @Override
     public String submitPortability(
         CentralPortabilityRequest request, String idempotencyKey, String correlationId) {
+      mdcOperationId.set(MDC.get("operationId"));
+      mdcJobId.set(MDC.get("jobId"));
       if (mode == Mode.UNAVAILABLE) {
         throw new CentralException("simulated 503", true, 503);
       }

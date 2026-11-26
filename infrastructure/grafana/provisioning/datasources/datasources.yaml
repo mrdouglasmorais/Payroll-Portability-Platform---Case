@@ -1,0 +1,13 @@
+# Slim cut of Java-Sentinel-Security-Observability-Lab datasources:
+# Prometheus only in the default Compose footprint (Tempo/Loki remain optional later).
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    jsonData:
+      timeInterval: 5s

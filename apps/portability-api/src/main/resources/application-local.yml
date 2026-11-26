@@ -1,0 +1,6 @@
+# Profile for local IDE debug: human-readable console logs.
+# Activate: SPRING_PROFILES_ACTIVE=local
+logging:
+  structured:
+    format:
+      console:

@@ -1,6 +1,7 @@
 package br.com.payroll.portability.shared.config;
 
 import br.com.payroll.portability.integration.central.CentralProperties;
+import io.micrometer.observation.ObservationRegistry;
 import java.net.http.HttpClient;
 import java.time.Clock;
 import java.time.Duration;
@@ -23,8 +24,13 @@ public class AppConfig {
     return Clock.systemUTC();
   }
 
+  /**
+   * Builder used by {@code HttpCentralGateway}. ObservationRegistry enables Micrometer/OTel
+   * client spans and {@code traceparent} propagation without changing HMAC headers.
+   */
   @Bean
-  RestClient.Builder restClientBuilder(CentralProperties properties) {
+  RestClient.Builder restClientBuilder(
+      CentralProperties properties, ObservationRegistry observationRegistry) {
     Duration connect =
         properties.getConnectTimeout() == null
             ? Duration.ofSeconds(2)
@@ -36,7 +42,7 @@ public class AppConfig {
     HttpClient httpClient = HttpClient.newBuilder().connectTimeout(connect).build();
     JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(httpClient);
     factory.setReadTimeout(read);
-    return RestClient.builder().requestFactory(factory);
+    return RestClient.builder().requestFactory(factory).observationRegistry(observationRegistry);
   }
 
   @Bean

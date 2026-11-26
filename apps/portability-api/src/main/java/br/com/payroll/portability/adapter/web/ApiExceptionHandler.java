@@ -4,8 +4,12 @@ import br.com.payroll.portability.integration.central.CentralException;
 import br.com.payroll.portability.portability.application.IdempotencyConflictException;
 import br.com.payroll.portability.shared.domain.DomainException;
 import br.com.payroll.portability.shared.domain.InstallmentConflictException;
+import br.com.payroll.portability.shared.observability.LogEvents;
+import br.com.payroll.portability.shared.observability.LogFields;
 import java.net.URI;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -20,6 +24,8 @@ import org.springframework.web.server.ResponseStatusException;
 @RestControllerAdvice
 public class ApiExceptionHandler {
 
+  private static final Logger log = LoggerFactory.getLogger(ApiExceptionHandler.class);
+
   @ExceptionHandler(DomainException.class)
   public ProblemDetail domain(DomainException ex) {
     return problem(HttpStatus.BAD_REQUEST, "Requisição inválida", ex.getMessage());
@@ -27,6 +33,10 @@ public class ApiExceptionHandler {
 
   @ExceptionHandler(InstallmentConflictException.class)
   public ProblemDetail installmentConflict(InstallmentConflictException ex) {
+    log.atWarn()
+        .addKeyValue(LogFields.EVENT, LogEvents.RESERVATION_CONFLICT)
+        .addKeyValue(LogFields.PARCELA_ID, ex.externalInstallmentId())
+        .log("Reservation conflict");
     ProblemDetail detail =
         problem(HttpStatus.CONFLICT, "Conflito de parcela", ex.getMessage());
     detail.setProperty("reason", ex.reason().name());
@@ -36,6 +46,9 @@ public class ApiExceptionHandler {
 
   @ExceptionHandler(IdempotencyConflictException.class)
   public ProblemDetail idempotency(IdempotencyConflictException ex) {
+    log.atWarn()
+        .addKeyValue(LogFields.EVENT, LogEvents.IDEMPOTENCY_CONFLICT)
+        .log("Idempotency conflict");
     return problem(HttpStatus.CONFLICT, "Conflito de idempotência", ex.getMessage());
   }
 

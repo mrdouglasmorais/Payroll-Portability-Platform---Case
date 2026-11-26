@@ -1,33 +1,14 @@
 # Plataforma de Portabilidade de Folha
 
-Simulação de portabilidade de descontos em folha (Java/Spring Boot + React/TypeScript + PostgreSQL) com um simulador independente da **Central de Convênios**. Apenas dados sintéticos — sem tráfego financeiro real.
+**Author:** Douglas Morais ([@mrdouglasmorais](https://github.com/mrdouglasmorais))
 
-Fonte de decisões de arquitetura: [board Miro](https://miro.com/app/board/uXjVEJ1cEDw=/?share_link_id=843643210573) ([docs/architecture/system-design.md](docs/architecture/system-design.md)). Rastreio: [matriz de conformidade](docs/compliance-matrix.md), [aceitação](docs/acceptance.md), [contratos OpenAPI](contracts/openapi/), [harness de IA](ai/README.md), [AGENTS.md](AGENTS.md).
+Simulação de portabilidade de descontos em folha (Java/Spring Boot + React + PostgreSQL) com Central de Convênios simulada. Dados sintéticos apenas.
 
-## Visão geral
+Docs (PT): [Notion](https://app.notion.com/p/424e56450c38818bb71fc51de037a438?v=424e56450c388121ab7f000c7541fddc&t=424e56450c3880448a0200a9a19721d3) · [Miro — começar no mapa 00](https://miro.com/app/board/uXjVEJ1cEDw=/?share_link_id=843643210573&moveToWidget=3458764691629361954) · [DBML](docs/architecture/data-model.md) · [AGENTS.md](AGENTS.md)
 
-O console do operador registra o opt-in do beneficiário, carrega a agenda autorizada, cria a portabilidade (uma ou várias parcelas) com conta de destino, acompanha a confirmação assíncrona da Central e exibe a linha do tempo append-only. A conta de recebimento só é efetivada após `CONFIRMADA` verificada.
+## Início rápido (local)
 
-## Funcionalidades
-
-- Autorização (opt-in) com identificador único via Central
-- Agenda futura autorizada (valor, data de desconto, convênio, status)
-- Criação com elegibilidade, reserva, idempotência
-- Fluxo assíncrono 202 + protocolo + worker SUBMIT/POLL (retry, lease, fencing)
-- Eventos append-only da operação
-- Distinção rejeição de negócio × falha técnica (`REQUIRES_REVIEW`)
-- Integridade HMAC nos dois sentidos; injeção de falhas na Central
-
-## Arquitetura (resumo)
-
-Monólito modular (`portability-api`) + Central independente + UI React. Dois PostgreSQL. Jobs persistidos com lease (sem broker). Transações locais; consistência eventual via poll/reconciliação. Ver [overview](docs/architecture/overview.md) e ADRs em `docs/adr/`.
-
-## Pré-requisitos
-
-- Docker + Docker Compose (caminho recomendado), **ou**
-- Temurin 25, Node 24, pnpm 10.18.2, PostgreSQL 17 local (dois bancos)
-
-## Como executar (Docker)
+Requisito: Docker Desktop (ou Engine + Compose).
 
 ```bash
 git clone https://github.com/mrdouglasmorais/Payroll-Portability-Platform---Case.git
@@ -36,82 +17,97 @@ cp .env.example .env
 docker compose up --build -d
 ```
 
-| Superfície | URL |
-| --- | --- |
-| Console operacional (pt-BR) | http://localhost:5173 |
-| API da plataforma (health) | http://localhost:8080/actuator/health |
-| Status da plataforma | http://localhost:8080/api/v1/status |
-| Métricas Prometheus (API) | http://localhost:8080/actuator/prometheus |
-| Central (health) | http://localhost:8081/actuator/health |
+Espere os healthchecks e abra:
 
-Parar: `docker compose down`. Lab descartável (apaga volumes): `docker compose down -v`.
+| O quê | URL |
+| --- | --- |
+| Console | http://localhost:5173 |
+| API health | http://localhost:8080/actuator/health |
+| Central health | http://localhost:8081/actuator/health |
+| Grafana (logs / traces / métricas) | http://127.0.0.1:3000 |
+| Prometheus scrape UI | http://127.0.0.1:9090 |
+
+Demo: no console use `ben-ui` / `conv-1` → autorize → escolha parcela → envie → acompanhe até **Confirmada**.
+
+Parar: `docker compose down` · reset total: `docker compose down -v`
+
+Sem Docker (JDK 25 + 2 Postgres + pnpm): [docs/dev/maven.md](docs/dev/maven.md) e seção *Rodando sem Docker* abaixo. Debug + k6: [runbook IntelliJ](docs/runbooks/load-test-intellij-debug.md).
+
+## Observabilidade local
+
+Compose sobe `otel-lgtm` (Grafana + Tempo + Loki + OTLP em `:4318`). Apps exportam traces/métricas via OTLP; logs vão em **JSON ECS no stdout** (um evento por transição — sem spam).
+
+```bash
+# Já coberto por: docker compose up --build -d
+open http://127.0.0.1:3000   # admin / valor de GRAFANA_ADMIN_PASSWORD
+```
+
+Dashboard home no Grafana: **Portability — Traceability** (ordem fixa saúde → throughput → outcomes → worker → latência → Tempo → logs → USE). Compacto: **Portability — Ops**.
+
+Como achar gaps (mesma ordem do board):
+
+1. **Throughput / erros** — painéis RED do dashboard (ou Prometheus `:9090` scrape opcional).
+2. **Trace** — seção Tempo / Explore → `portability.job` (API→Central no mesmo `traceId`).
+3. **Logs** — `docker compose logs portability-api | rg '"event"|<traceId>'` (ECS stdout; sem OTLP logs).
+
+Catálogo: [docs/architecture/observability.md](docs/architecture/observability.md). IDE texto: `SPRING_PROFILES_ACTIVE=local`.
+
+## Visão geral
+
+Opt-in → agenda → criação com reserva/idempotência → worker SUBMIT/POLL → confirmação assíncrona. Conta de recebimento só muda após `CONFIRMADA`. Auditoria oficial = `operation_events` (não o log).
+
+## Arquitetura (resumo)
+
+`portability-api` + `central-simulator` + React; dois PostgreSQL; jobs com lease (sem broker). Ver [overview](docs/architecture/overview.md) e ADRs.
 
 ## Rodando sem Docker
 
-Use dois Postgres (plataforma e Central), copie `.env.example` e ajuste URLs/portas.
-
-### 1) Central de Convênios (mock)
+Dois Postgres (plataforma `:5432`, Central `:5433`), `.env.example`, depois:
 
 ```bash
+# Terminal 1 — Central
 cd apps/central-simulator
 export SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5433/central
-export SPRING_DATASOURCE_USERNAME=central
-export SPRING_DATASOURCE_PASSWORD=central
-export CENTRAL_HMAC_SECRET=local-test-hmac-secret
-export CENTRAL_HMAC_KEY_ID=local-test-key
-export CENTRAL_CONFIRM_DELAY=PT2S
-export CENTRAL_FAULT_RATE=0          # demos ocasionais: 0.2
-export CENTRAL_FAULT_SEED=42
+export SPRING_DATASOURCE_USERNAME=central SPRING_DATASOURCE_PASSWORD=central
+export CENTRAL_HMAC_SECRET=local-test-hmac-secret CENTRAL_HMAC_KEY_ID=local-test-key
 export SERVER_PORT=8081
 ./mvnw spring-boot:run
-```
 
-Health: `http://localhost:8081/actuator/health`
-
-### 2) Backend da plataforma
-
-```bash
+# Terminal 2 — API
 cd apps/portability-api
 export SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/portability
-export SPRING_DATASOURCE_USERNAME=portability
-export SPRING_DATASOURCE_PASSWORD=portability
+export SPRING_DATASOURCE_USERNAME=portability SPRING_DATASOURCE_PASSWORD=portability
 export CENTRAL_BASE_URL=http://localhost:8081
-export CENTRAL_HMAC_SECRET=local-test-hmac-secret
-export CENTRAL_HMAC_KEY_ID=local-test-key
+export CENTRAL_HMAC_SECRET=local-test-hmac-secret CENTRAL_HMAC_KEY_ID=local-test-key
 export SERVER_PORT=8080
 ./mvnw spring-boot:run
+
+# Terminal 3 — UI
+cd apps/web && pnpm install && pnpm dev
 ```
 
-Health: `http://localhost:8080/actuator/health`
-
-### 3) Frontend (console)
-
-```bash
-cd apps/web
-pnpm install
-pnpm dev
-```
-
-Dev server em http://localhost:5173 (proxy de `/api` e `/actuator` para a API em `:8080`).
-
-Variáveis principais também estão em [`.env.example`](.env.example).
+Variáveis: [`.env.example`](.env.example).
 
 ## Dados de demonstração (sintéticos)
 
-| Beneficiário | Uso |
-| --- | --- |
-| `ben-ui` / `conv-1` | Console / Playwright (`parcela-ui-*`) |
-| `ben-001` | E2E dual-stack |
-| `ben-recover` | Recuperação / restart |
-| Sufixos `*-reject`, `*-503`, `*-timeout` | Falhas **determinísticas** na Central |
+Inventário canônico (demos/E2E/k6): ver [docs/architecture/seed-inventory.md](docs/architecture/seed-inventory.md).
+
+| Beneficiário | Parcelas | Uso |
+| --- | --- | --- |
+| `ben-ui` / `conv-1` | `parcela-ui-1..4` | Console / Playwright |
+| `ben-001` / `conv-1` | `parcela-seed-1..2`, `parcela-load-01..20` | E2E dual-stack / k6 |
+| `ben-recover` / `conv-1` | `parcela-recover-1..2` | Recuperação / restart |
+| Sufixos `*-reject`, `*-503`, `*-timeout` | parcelas de falha + sufixo | Falhas **determinísticas** na Central |
+
+**Clean seed não está disponível** como migration/script executável. `V11` é só marcador documental (no-op). `parcela-seed-3`/`ben-002` podem existir no histórico `V2` e não entram no inventário canônico.
 
 Após uma confirmação, **não reabra parcialmente** parcelas `PORTED`. Em lab descartável: `docker compose down -v`.
 
-### Flyway V8 / V9 (Central)
+### Flyway V8 / V9 / V11 (Central)
 
 - `V8` historicamente reabriu parcelas de demo no migrate e ainda roda em instalação limpa.
-- `V9` é marcador de política (no-op) e **não desfaz** a V8.
-- Reset seguro = volumes descartáveis; não use isso em ambientes financeiros persistentes.
+- `V9` / `V11` são marcadores de política (no-op); **não** apagam nem reabrem seeds.
+- Reset seguro = volumes descartáveis ou `scripts/lab-reset-demo-parcels.sh`.
 
 ## Como demonstrar
 
@@ -153,6 +149,8 @@ Precedência: header → sufixo → sorteio. O padrão é `CENTRAL_FAULT_RATE=0`
 O esboço do PDF sugere `assinatura` no JSON. Aqui a assinatura vai nos headers (`X-Signature`, `X-Timestamp`, `X-Nonce`, `X-Key-Id`): o corpo permanece só negócio e evita assinar um documento que contém a própria assinatura. Detalhes: [ADR-009](docs/adr/ADR-009-hmac.md).
 
 ## Como rodar os testes
+
+Comandos Maven detalhados (clean, `-Dtest`, package, `spring-boot:run`): [docs/dev/maven.md](docs/dev/maven.md).
 
 ```bash
 cd apps/portability-api && ./mvnw -B verify && cd ../..
@@ -203,7 +201,7 @@ Serviço Spring Boot independente, banco próprio. Contrato sugerido (`/autoriza
 
 ## Decisões arquiteturais
 
-Ver `docs/adr/` (monólito modular, dual DB, jobs persistidos, HMAC, reservas, polling, harness de IA). Detalhes: [idempotência](docs/architecture/idempotency-and-integrity.md), [lease do worker](docs/architecture/worker-lease.md), [observabilidade](docs/architecture/observability.md).
+Comece pelo Miro no [mapa 00](https://miro.com/app/board/uXjVEJ1cEDw=/?share_link_id=843643210573&moveToWidget=3458764691629361954) e pelo índice em [system-design.md](docs/architecture/system-design.md). ADRs em `docs/adr/`. Detalhes: [idempotência](docs/architecture/idempotency-and-integrity.md), [lease do worker](docs/architecture/worker-lease.md), [observabilidade](docs/architecture/observability.md), [modelo de dados](docs/architecture/data-model.md), [Maven](docs/dev/maven.md).
 
 ## Harness de IA
 

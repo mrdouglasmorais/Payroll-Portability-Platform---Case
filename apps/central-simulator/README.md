@@ -6,8 +6,12 @@ Simulador independente do protocolo da Central (Spring Boot 4 / Java 25).
 
 ```bash
 ./mvnw spring-boot:run
-./mvnw verify
+./mvnw -B verify
+./mvnw -B clean verify
+./mvnw -B -DskipTests package
 ```
+
+Lista completa: [docs/dev/maven.md](../../docs/dev/maven.md).
 
 Health: `GET /actuator/health`  
 Status: `GET /status`

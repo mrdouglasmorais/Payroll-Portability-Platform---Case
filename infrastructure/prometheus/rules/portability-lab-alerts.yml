@@ -1,0 +1,35 @@
+groups:
+  - name: portability-lab
+    rules:
+      - alert: PortabilityApiDown
+        expr: up{job="portability-api"} == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "portability-api Prometheus target is down"
+          description: "Lab scrape of portability-api failed for 30s."
+
+      - alert: CentralSimulatorDown
+        expr: up{job="central-simulator"} == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "central-simulator Prometheus target is down"
+
+      - alert: PortabilityJobBacklogHigh
+        expr: portability_jobs_backlog{state="open"} > 20
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "OPEN processing job backlog above lab threshold"
+
+      - alert: PortabilityCentralTransientFailures
+        expr: increase(portability_central_failures_total{class="transient"}[5m]) > 10
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Elevated transient Central failures (lab)"

@@ -29,10 +29,25 @@ management:
   metrics:
     tags:
       application: ${spring.application.name}
+  tracing:
+    sampling:
+      probability: ${MANAGEMENT_TRACING_SAMPLING_PROBABILITY:1.0}
+    export:
+      otlp:
+        # Disabled until Compose sets OTEL_EXPORTER_OTLP_ENDPOINT (avoids empty /v1/traces).
+        enabled: false
+  otlp:
+    metrics:
+      export:
+        enabled: false
+  opentelemetry:
+    resource-attributes:
+      service.name: ${OTEL_SERVICE_NAME:portability-api}
 
 logging:
-  pattern:
-    level: "%5p [${spring.application.name:},%X{correlationId:-}]"
+  structured:
+    format:
+      console: ecs
 
 app:
   cors:

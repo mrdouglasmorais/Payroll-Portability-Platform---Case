@@ -44,11 +44,18 @@ services:
       CENTRAL_CONFIRM_DELAY: ${CENTRAL_CONFIRM_DELAY:-PT1S}
       CENTRAL_FAULT_RATE: ${CENTRAL_FAULT_RATE:-0}
       CENTRAL_FAULT_SEED: ${CENTRAL_FAULT_SEED:-42}
+      OTEL_SERVICE_NAME: central-simulator
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-lgtm:4318
+      MANAGEMENT_TRACING_EXPORT_OTLP_ENABLED: "true"
+      MANAGEMENT_OTLP_METRICS_EXPORT_ENABLED: "true"
+      MANAGEMENT_OTLP_METRICS_EXPORT_URL: http://otel-lgtm:4318/v1/metrics
     ports:
       - "8081:8080"
     depends_on:
       central-db:
         condition: service_healthy
+      otel-lgtm:
+        condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/actuator/health | grep -q UP"]
       interval: 10s
@@ -67,6 +74,11 @@ services:
       CENTRAL_BASE_URL: http://central-simulator:8080
       CENTRAL_HMAC_SECRET: ${CENTRAL_HMAC_SECRET:-local-test-hmac-secret}
       CENTRAL_HMAC_KEY_ID: ${CENTRAL_HMAC_KEY_ID:-local-test-key}
+      OTEL_SERVICE_NAME: portability-api
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-lgtm:4318
+      MANAGEMENT_TRACING_EXPORT_OTLP_ENABLED: "true"
+      MANAGEMENT_OTLP_METRICS_EXPORT_ENABLED: "true"
+      MANAGEMENT_OTLP_METRICS_EXPORT_URL: http://otel-lgtm:4318/v1/metrics
     ports:
       - "8080:8080"
     depends_on:
@@ -74,6 +86,8 @@ services:
         condition: service_healthy
       central-simulator:
         condition: service_healthy
+      otel-lgtm:
+        condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/actuator/health | grep -q UP"]
       interval: 10s
@@ -98,6 +112,49 @@ services:
       retries: 8
       start_period: 10s
 
+  # All-in-one OTel lab: Grafana + Tempo + Loki + Prometheus + OTLP (:4317/:4318).
+  # CI does not require this image — apps start without OTEL_EXPORTER_OTLP_ENDPOINT.
+  otel-lgtm:
+    image: grafana/otel-lgtm:0.41.1
+    ports:
+      - "127.0.0.1:3000:3000"
+      - "127.0.0.1:4317:4317"
+      - "127.0.0.1:4318:4318"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin-lab}
+      # Single-instance lab: skip Pyroscope rolling-update readiness delay (avoids flaky exits).
+      PYROSCOPE_EXTRA_ARGS: "-metastore.min-ready-duration=0 -segment-writer.min-ready-duration=0"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /otel-lgtm/grafana/conf/provisioning/dashboards/custom/portability-traceability.json
+    volumes:
+      - otel-lgtm-data:/data
+      - ./infrastructure/grafana/provisioning/dashboards/lgtm-custom.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/custom.yaml:ro
+      - ./infrastructure/grafana/dashboards/portability-traceability.json:/otel-lgtm/grafana/conf/provisioning/dashboards/custom/portability-traceability.json:ro
+      - ./infrastructure/grafana/dashboards/portability-ops.json:/otel-lgtm/grafana/conf/provisioning/dashboards/custom/portability-ops.json:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:3000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 90s
+
+  # Optional scrape of /actuator/prometheus (host or Compose published ports).
+  prometheus:
+    image: prom/prometheus:v3.16.0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=3d
+      - --web.enable-lifecycle
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./infrastructure/prometheus:/etc/prometheus:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
+
 volumes:
   platform-db-data:
   central-db-data:
+  prometheus-data:
+  otel-lgtm-data:

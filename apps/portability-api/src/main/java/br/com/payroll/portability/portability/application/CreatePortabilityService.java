@@ -8,7 +8,10 @@ import br.com.payroll.portability.schedule.domain.InstallmentSnapshot;
 import br.com.payroll.portability.schedule.domain.InstallmentStatus;
 import br.com.payroll.portability.shared.domain.DomainException;
 import br.com.payroll.portability.shared.domain.InstallmentConflictException;
+import br.com.payroll.portability.shared.observability.LogEvents;
+import br.com.payroll.portability.shared.observability.LogFields;
 import br.com.payroll.portability.shared.observability.PortabilityTelemetry;
+import br.com.payroll.portability.shared.observability.SensitiveData;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -16,6 +19,8 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +28,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class CreatePortabilityService {
 
   public static final String IDEMPOTENCY_SCOPE = "portability-create";
+
+  private static final Logger log = LoggerFactory.getLogger(CreatePortabilityService.class);
 
   private final ConsentRepository consentRepository;
   private final InstallmentRepository installmentRepository;
@@ -45,10 +52,24 @@ public class CreatePortabilityService {
 
   @Transactional
   public UUID create(PortabilityCommand command) {
-    Optional<UUID> claimedOrExisting =
-        operationRepository.claimIdempotencyOrFind(
-            IDEMPOTENCY_SCOPE, command.idempotencyKey(), command.requestHash());
+    Optional<UUID> claimedOrExisting;
+    try {
+      claimedOrExisting =
+          operationRepository.claimIdempotencyOrFind(
+              IDEMPOTENCY_SCOPE, command.idempotencyKey(), command.requestHash());
+    } catch (IdempotencyConflictException ex) {
+      log.atWarn()
+          .addKeyValue(LogFields.EVENT, LogEvents.IDEMPOTENCY_CONFLICT)
+          .addKeyValue(LogFields.CORRELATION_ID, command.correlationId())
+          .log("Idempotency key reused with different payload");
+      throw ex;
+    }
     if (claimedOrExisting.isPresent()) {
+      log.atInfo()
+          .addKeyValue(LogFields.EVENT, LogEvents.IDEMPOTENCY_REPLAY)
+          .addKeyValue(LogFields.OPERATION_ID, claimedOrExisting.get().toString())
+          .addKeyValue(LogFields.CORRELATION_ID, command.correlationId())
+          .log("Idempotent replay of create");
       return claimedOrExisting.get();
     }
 
@@ -114,7 +135,26 @@ public class CreatePortabilityService {
           IDEMPOTENCY_SCOPE, command.idempotencyKey(), operation.id());
       claimOwned = false;
       telemetry.operationCreated();
+      log.atInfo()
+          .addKeyValue(LogFields.EVENT, LogEvents.PORTABILITY_CREATED)
+          .addKeyValue(LogFields.OPERATION_ID, operation.id().toString())
+          .addKeyValue(LogFields.CORRELATION_ID, command.correlationId())
+          .addKeyValue(LogFields.RECEIVING_BANK, command.receivingAccount().bank())
+          .addKeyValue(
+              LogFields.RECEIVING_AGENCY_MASKED,
+              SensitiveData.maskAgency(command.receivingAccount().agency()))
+          .addKeyValue(
+              LogFields.RECEIVING_ACCOUNT_MASKED,
+              SensitiveData.maskAccount(command.receivingAccount().account()))
+          .log("Portability operation created");
       return operation.id();
+    } catch (InstallmentConflictException ex) {
+      log.atWarn()
+          .addKeyValue(LogFields.EVENT, LogEvents.RESERVATION_CONFLICT)
+          .addKeyValue(LogFields.PARCELA_ID, ex.externalInstallmentId())
+          .addKeyValue(LogFields.CORRELATION_ID, command.correlationId())
+          .log("Installment reservation conflict");
+      throw ex;
     } finally {
       if (claimOwned) {
         operationRepository.releaseIdempotencyClaim(

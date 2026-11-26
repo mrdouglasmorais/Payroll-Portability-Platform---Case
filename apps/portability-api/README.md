@@ -6,10 +6,12 @@ API da plataforma de portabilidade (Spring Boot 4 / Java 25).
 
 ```bash
 ./mvnw spring-boot:run
-./mvnw verify
+./mvnw -B verify
+./mvnw -B clean verify
+./mvnw -B -DskipTests package
 ```
 
-Ver também a seção **Rodando sem Docker** no README da raiz.
+Lista completa: [docs/dev/maven.md](../../docs/dev/maven.md). Sem Docker: README da raiz.
 
 Health: `GET /actuator/health`  
 Status: `GET /api/v1/status`

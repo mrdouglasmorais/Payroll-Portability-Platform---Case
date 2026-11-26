@@ -1,0 +1,163 @@
+{
+  "uid": "portability-ops",
+  "title": "Portability — Ops compact (LGTM Prometheus)",
+  "description": "Compact companion to Traceability board. Metrics use OTLP→Prometheus naming (*_milliseconds). Author: Douglas Morais.",
+  "tags": ["portability", "lab", "prometheus"],
+  "timezone": "browser",
+  "editable": false,
+  "graphTooltip": 1,
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "time": { "from": "now-15m", "to": "now" },
+  "panels": [
+    {
+      "type": "row",
+      "title": "SLI snapshot",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 }
+    },
+    {
+      "type": "stat",
+      "title": "API RPS",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "reqps", "decimals": 2 } },
+      "options": { "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{
+        "refId": "A",
+        "expr": "sum(rate(http_server_requests_milliseconds_count{application=\"portability-api\",uri!~\".*/actuator.*\"}[$__rate_interval]))"
+      }]
+    },
+    {
+      "type": "stat",
+      "title": "Jobs backlog OPEN",
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 5 }, { "color": "red", "value": 20 }] }
+        }
+      },
+      "options": { "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "targets": [{ "refId": "A", "expr": "portability_jobs_backlog{state=\"open\"}" }]
+    },
+    {
+      "type": "stat",
+      "title": "Jobs exhausted",
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 1 }, { "color": "red", "value": 5 }] }
+        }
+      },
+      "options": { "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "targets": [{ "refId": "A", "expr": "portability_jobs_backlog{state=\"exhausted\"}" }]
+    },
+    {
+      "type": "stat",
+      "title": "Confirmed rate",
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "ops", "decimals": 3 } },
+      "options": { "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{
+        "refId": "A",
+        "expr": "sum(rate(portability_operations_total{outcome=\"confirmed\"}[$__rate_interval])) or vector(0)"
+      }]
+    },
+    {
+      "type": "stat",
+      "title": "Central failures rate",
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "decimals": 3,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 0.05 }, { "color": "red", "value": 0.5 }] }
+        }
+      },
+      "options": { "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "targets": [{
+        "refId": "A",
+        "expr": "sum(rate(portability_central_failures_total[$__rate_interval])) or vector(0)"
+      }]
+    },
+    {
+      "type": "stat",
+      "title": "HTTP 5xx rate",
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "decimals": 3,
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 0.01 }] }
+        }
+      },
+      "options": { "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "targets": [{
+        "refId": "A",
+        "expr": "sum(rate(http_server_requests_milliseconds_count{application=\"portability-api\",status=~\"5..\"}[$__rate_interval])) or vector(0)"
+      }]
+    },
+    {
+      "type": "row",
+      "title": "Outcomes & worker",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 }
+    },
+    {
+      "type": "timeseries",
+      "title": "Operations by outcome (rate)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "ops", "custom": { "fillOpacity": 15, "spanNulls": true } } },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [{
+        "refId": "A",
+        "expr": "sum by (outcome) (rate(portability_operations_total[$__rate_interval]))",
+        "legendFormat": "{{outcome}}"
+      }]
+    },
+    {
+      "type": "timeseries",
+      "title": "Worker claims / fence / exhausted",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "ops", "custom": { "fillOpacity": 10, "spanNulls": true } } },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "refId": "A", "expr": "rate(portability_jobs_claimed_total[$__rate_interval])", "legendFormat": "claimed" },
+        { "refId": "B", "expr": "rate(portability_jobs_stale_fence_total[$__rate_interval])", "legendFormat": "stale_fence" },
+        { "refId": "C", "expr": "rate(portability_jobs_exhausted_total[$__rate_interval])", "legendFormat": "exhausted" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "HTTP P95 (API)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "ms", "custom": { "fillOpacity": 10, "spanNulls": true } } },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [{
+        "refId": "A",
+        "expr": "histogram_quantile(0.95, sum by (le, uri) (rate(http_server_requests_milliseconds_bucket{application=\"portability-api\",uri!~\".*/actuator.*\"}[$__rate_interval])))",
+        "legendFormat": "{{uri}}"
+      }]
+    },
+    {
+      "type": "timeseries",
+      "title": "Hikari active + JVM heap",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "custom": { "fillOpacity": 10, "spanNulls": true } } },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "refId": "A", "expr": "hikaricp_connections_active", "legendFormat": "hikari {{application}}" },
+        { "refId": "B", "expr": "jvm_memory_used_bytes{area=\"heap\"} / 1024 / 1024", "legendFormat": "heapMiB {{application}}" }
+      ]
+    }
+  ]
+}
