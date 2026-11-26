@@ -37,12 +37,42 @@ export type ProcessingView = {
   requiresAction: boolean
 }
 
+export type ReceivingAccountView = {
+  banco: string
+  agencia: string
+  conta: string
+}
+
 export type OperationStatus = {
   operationId?: string
   status: 'PENDENTE' | 'CONFIRMADA' | 'REJEITADA'
   motivoRejeicao: string | null
   correlationId?: string
+  centralProtocol?: string | null
+  contaRecebimento?: ReceivingAccountView
+  /** True only after confirmed — destination applied to installments. */
+  contaEfetivada?: boolean
   processing?: ProcessingView
+}
+
+export type OperationListItem = {
+  operationId: string
+  status: 'PENDENTE' | 'CONFIRMADA' | 'REJEITADA'
+  createdAt: string
+  correlationId: string
+  centralProtocol: string | null
+  contaRecebimento: ReceivingAccountView
+  contaEfetivada: boolean
+}
+
+export type OperationPage = {
+  items: OperationListItem[]
+  page: number
+  size: number
+  totalElements: number
+  totalPages: number
+  hasNext: boolean
+  hasPrevious: boolean
 }
 
 export type OperationEvent = {

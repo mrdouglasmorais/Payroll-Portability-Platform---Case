@@ -6,4 +6,6 @@ public record OperationStatusResponse(
     String motivoRejeicao,
     String correlationId,
     String centralProtocol,
+    ReceivingAccountView contaRecebimento,
+    boolean contaEfetivada,
     ProcessingStatusResponse processing) {}

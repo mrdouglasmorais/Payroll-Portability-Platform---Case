@@ -157,6 +157,8 @@ export function usePortabilityFlow() {
   const [showAdvancedIds, setShowAdvancedIds] = useState(false)
   const [eventsCatchUpDone, setEventsCatchUpDone] = useState(false)
   const [inlineError, setInlineError] = useState<string | null>(null)
+  const [historyPage, setHistoryPage] = useState(0)
+  const historyPageSize = 10
 
   const lastStepRef = useRef<WizardStep>(initial.step)
   const skipNextUrlWriteRef = useRef(false)
@@ -331,6 +333,10 @@ export function usePortabilityFlow() {
       setInlineError(null)
       setEventsCatchUpDone(false)
       dispatch({ type: 'SUBMISSION_SUCCEEDED', operationId: data.operationId })
+      setHistoryPage(0)
+      void queryClient.invalidateQueries({
+        queryKey: [...portabilityKeys.all, 'operations', beneficiaryId.trim()],
+      })
       toast.push({
         tone: 'success',
         title: 'Operação aceita',
@@ -357,6 +363,34 @@ export function usePortabilityFlow() {
     },
   })
 
+  useEffect(() => {
+    setHistoryPage(0)
+  }, [beneficiaryId])
+
+  const historyQuery = useQuery({
+    queryKey: portabilityKeys.operations(
+      beneficiaryId.trim() || 'none',
+      historyPage,
+      historyPageSize,
+    ),
+    queryFn: () =>
+      portabilityApiService.listOperations(
+        beneficiaryId.trim(),
+        historyPage,
+        historyPageSize,
+      ),
+    enabled: beneficiaryId.trim().length > 0,
+    retry: 1,
+    placeholderData: (previous) => previous,
+  })
+
+  useEffect(() => {
+    const totalPages = historyQuery.data?.totalPages ?? 0
+    if (totalPages > 0 && historyPage >= totalPages) {
+      setHistoryPage(totalPages - 1)
+    }
+  }, [historyQuery.data?.totalPages, historyPage])
+
   const statusQuery = useQuery({
     queryKey: portabilityKeys.operation(workflow.operationId ?? 'none'),
     queryFn: () => portabilityApiService.getOperation(workflow.operationId!),
@@ -370,8 +404,15 @@ export function usePortabilityFlow() {
   useEffect(() => {
     if (!statusTerminal) {
       setEventsCatchUpDone(false)
+      return
     }
-  }, [statusTerminal])
+    const ben = beneficiaryId.trim()
+    if (ben) {
+      void queryClient.invalidateQueries({
+        queryKey: [...portabilityKeys.all, 'operations', ben],
+      })
+    }
+  }, [statusTerminal, beneficiaryId, queryClient])
 
   const eventsQuery = useQuery({
     queryKey: portabilityKeys.events(workflow.operationId ?? 'none'),
@@ -475,8 +516,28 @@ export function usePortabilityFlow() {
     setEventsCatchUpDone(false)
     setInlineError(null)
     setShowAdvancedIds(false)
+    setHistoryPage(0)
     queryClient.removeQueries({ queryKey: portabilityKeys.all })
   }, [queryClient])
+
+  const goHistoryPrevious = useCallback(() => {
+    setHistoryPage((current) => Math.max(0, current - 1))
+  }, [])
+
+  const goHistoryNext = useCallback(() => {
+    setHistoryPage((current) => current + 1)
+  }, [])
+
+  const openOperation = useCallback((operationId: string) => {
+    setInlineError(null)
+    setEventsCatchUpDone(false)
+    dispatch({
+      type: 'RESTORE',
+      step: 'acompanhamento',
+      authorizationId: workflow.authorizationId,
+      operationId,
+    })
+  }, [workflow.authorizationId])
 
   const goBack = useCallback(() => {
     setInlineError(null)
@@ -505,6 +566,10 @@ export function usePortabilityFlow() {
     submitMutation,
     statusQuery,
     eventsQuery,
+    historyQuery,
+    historyPage,
+    goHistoryPrevious,
+    goHistoryNext,
     statusTerminal,
     toggleParcela,
     applyDemoIdentity,
@@ -512,6 +577,7 @@ export function usePortabilityFlow() {
     goDestination,
     goReview,
     goBack,
+    openOperation,
     startOver,
     describeError,
   }

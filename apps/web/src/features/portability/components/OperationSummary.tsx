@@ -1,5 +1,9 @@
 import type { ReactNode } from 'react'
-import type { AgendaItem, ReceivingAccount } from '../../../shared/api/types'
+import type {
+  AgendaItem,
+  ReceivingAccount,
+  ReceivingAccountView,
+} from '../../../shared/api/types'
 import { labelBusinessStatus } from '../../../shared/i18n/labels'
 import { maskAccount } from '../../../shared/lib/mask'
 import { formatMoney, sumMoney } from '../money'
@@ -13,6 +17,9 @@ type Props = {
   selectedItems: AgendaItem[]
   creditor: string
   account: ReceivingAccount
+  /** Masked account from GET status — used when form account is empty (deep-link). */
+  trackedAccount?: ReceivingAccountView | null
+  contaEfetivada?: boolean
   operationId: string | null
   businessStatus?: string
 }
@@ -48,11 +55,18 @@ export function OperationSummary({
   selectedItems,
   creditor,
   account,
+  trackedAccount,
+  contaEfetivada,
   operationId,
   businessStatus,
 }: Props) {
   const total = sumMoney(selectedItems.map((item) => item.valor))
   const hasAccount = Boolean(account.banco && account.agencia && account.conta)
+  const destinationLabel = hasAccount
+    ? `${account.banco}/${account.agencia}/${maskAccount(account.conta)}`
+    : trackedAccount
+      ? `${trackedAccount.banco}/${trackedAccount.agencia}/${trackedAccount.conta}`
+      : null
 
   return (
     <aside className="card summary-card">
@@ -117,12 +131,10 @@ export function OperationSummary({
               )}
             </SummaryRow>
             <SummaryRow label="Destino">
-              {creditor && hasAccount ? (
+              {destinationLabel ? (
                 <div className="summary-destination">
-                  <span>{creditor}</span>
-                  <code className="mono">
-                    {account.banco}/{account.agencia}/{maskAccount(account.conta)}
-                  </code>
+                  {creditor ? <span>{creditor}</span> : null}
+                  <code className="mono">{destinationLabel}</code>
                 </div>
               ) : (
                 <span className="muted">Não informado</span>
@@ -143,6 +155,15 @@ export function OperationSummary({
                 {businessStatus ? (
                   <SummaryRow label="Status">
                     {labelBusinessStatus(businessStatus)}
+                  </SummaryRow>
+                ) : null}
+                {contaEfetivada != null ? (
+                  <SummaryRow label="Conta nas parcelas">
+                    {contaEfetivada
+                      ? 'Efetivada'
+                      : businessStatus === 'REJEITADA'
+                        ? 'Não aplicada'
+                        : 'Pendente'}
                   </SummaryRow>
                 ) : null}
               </dl>

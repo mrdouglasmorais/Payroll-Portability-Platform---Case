@@ -37,6 +37,20 @@ function labelProcessing(status: OperationStatus['processing']): string {
   }
 }
 
+function formatAccount(view: NonNullable<OperationStatus['contaRecebimento']>): string {
+  return `${view.banco}/${view.agencia}/${view.conta}`
+}
+
+function accountEffectCopy(status: OperationStatus): string {
+  if (status.status === 'CONFIRMADA' || status.contaEfetivada) {
+    return 'Efetivada nas parcelas desta operação (conta anterior substituída).'
+  }
+  if (status.status === 'REJEITADA') {
+    return 'Não aplicada. Conta efetiva anterior das parcelas foi preservada.'
+  }
+  return 'Ainda não efetivada. Só muda após confirmação verificada da Central.'
+}
+
 export function TrackingStep({
   operationId,
   statusQuery,
@@ -46,6 +60,7 @@ export function TrackingStep({
 }: Props) {
   const businessStatus = statusQuery.data?.status ?? 'PENDENTE'
   const terminal = isTerminal(businessStatus)
+  const conta = statusQuery.data?.contaRecebimento
 
   return (
     <section className="card step-enter" aria-live="polite" aria-busy={!terminal}>
@@ -80,6 +95,32 @@ export function TrackingStep({
           </div>
         </div>
 
+        {conta ? (
+          <div className="account-effect" data-testid="account-effect">
+            <h4 className="card__title" style={{ marginTop: 0, fontSize: '1rem' }}>
+              Conta de recebimento
+            </h4>
+            <dl className="account-effect__grid">
+              <div>
+                <dt>Destino informado</dt>
+                <dd className="mono">{formatAccount(conta)}</dd>
+              </div>
+              <div>
+                <dt>Efetivação nas parcelas</dt>
+                <dd data-effect={businessStatus}>
+                  {statusQuery.data ? accountEffectCopy(statusQuery.data) : '—'}
+                </dd>
+              </div>
+              {statusQuery.data?.status === 'CONFIRMADA' ? (
+                <div>
+                  <dt>Conta efetiva após confirmação</dt>
+                  <dd className="mono">{formatAccount(conta)}</dd>
+                </div>
+              ) : null}
+            </dl>
+          </div>
+        ) : null}
+
         {statusQuery.data?.status === 'REJEITADA' ? (
           <p className="inline-alert inline-alert--error" role="status">
             Rejeição de negócio:{' '}
@@ -99,7 +140,7 @@ export function TrackingStep({
 
         {statusQuery.data?.status === 'CONFIRMADA' ? (
           <p className="inline-alert inline-alert--success" role="status">
-            Confirmada pela Central. A conta de recebimento só é efetivada após a verificação.
+            Confirmada pela Central. Conta efetivada nas parcelas selecionadas.
           </p>
         ) : null}
 

@@ -18,6 +18,55 @@ function renderWizard() {
   )
 }
 
+function isOperationsListUrl(url: string, init?: RequestInit): boolean {
+  if (init?.method && init.method.toUpperCase() !== 'GET') {
+    return false
+  }
+  return (
+    url.includes('/operacoes-portabilidade') &&
+    !url.includes('/eventos') &&
+    !/\/operacoes-portabilidade\/[^?/]+/.test(url)
+  )
+}
+
+function emptyHistoryResponse() {
+  return {
+    ok: true,
+    status: 200,
+    json: async () => ({
+      items: [],
+      page: 0,
+      size: 10,
+      totalElements: 0,
+      totalPages: 0,
+      hasNext: false,
+      hasPrevious: false,
+    }),
+  }
+}
+
+function historyPageResponse(
+  items: Array<Record<string, unknown>>,
+  page = 0,
+  size = 10,
+) {
+  const totalElements = items.length
+  const totalPages = totalElements === 0 ? 0 : 1
+  return {
+    ok: true,
+    status: 200,
+    json: async () => ({
+      items,
+      page,
+      size,
+      totalElements,
+      totalPages,
+      hasNext: false,
+      hasPrevious: false,
+    }),
+  }
+}
+
 describe('PortabilityWizard', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
@@ -57,11 +106,16 @@ describe('PortabilityWizard', () => {
           json: async () => ({ error: 'Central unavailable' }),
         }
       }
+      if (isOperationsListUrl(url, init)) {
+        return emptyHistoryResponse()
+      }
       return { ok: false, status: 404, json: async () => ({ error: 'missing' }) }
     })
     vi.stubGlobal('fetch', fetchMock)
 
     renderWizard()
+
+    expect(await screen.findByText('Histórico do beneficiário')).toBeInTheDocument()
 
     await user.click(
       screen.getByRole('button', { name: 'Autorizar e consultar agenda' }),
@@ -132,6 +186,9 @@ describe('PortabilityWizard', () => {
             ],
           }
         }
+        if (isOperationsListUrl(url)) {
+          return emptyHistoryResponse()
+        }
         return { ok: false, status: 404, json: async () => ({}) }
       }),
     )
@@ -182,14 +239,36 @@ describe('PortabilityWizard', () => {
             json: async () => ({ operationId: 'op-1' }),
           }
         }
-        if (url.endsWith('/operacoes-portabilidade/op-1')) {
+        if (isOperationsListUrl(url, init)) {
+          return historyPageResponse([
+            {
+              operationId: 'op-1',
+              status: 'CONFIRMADA',
+              createdAt: '2026-11-25T00:00:00Z',
+              correlationId: 'corr-1',
+              centralProtocol: 'prot-1',
+              contaRecebimento: { banco: '001', agencia: '1234', conta: '****89-0' },
+              contaEfetivada: true,
+            },
+          ])
+        }
+        if (url.includes('/operacoes-portabilidade/op-1') && !url.includes('/eventos')) {
           operationCalls += 1
           return {
             ok: true,
             status: 200,
             json: async () => ({
+              operationId: 'op-1',
               status: 'CONFIRMADA',
               motivoRejeicao: null,
+              contaRecebimento: { banco: '001', agencia: '1234', conta: '****89-0' },
+              contaEfetivada: true,
+              processing: {
+                status: 'SUCCEEDED',
+                attemptCount: 1,
+                errorCode: null,
+                requiresAction: false,
+              },
             }),
           }
         }
@@ -223,10 +302,14 @@ describe('PortabilityWizard', () => {
     await user.click(screen.getByRole('button', { name: 'Revisar' }))
     await user.click(screen.getByRole('button', { name: 'Enviar portabilidade' }))
 
-    await screen.findByText((_, node) => {
-      return node?.getAttribute?.('data-status') === 'CONFIRMADA'
-    })
+    const accountEffect = await screen.findByTestId('account-effect')
+    expect(accountEffect).toHaveTextContent('001/1234/****89-0')
+    expect(accountEffect).toHaveTextContent(/Efetivada nas parcelas/)
+    expect(
+      screen.getByRole('heading', { name: 'Resultado e auditoria' }).closest('section'),
+    ).toHaveTextContent(/Confirmada/i)
     expect(screen.queryByText(/consultando API/)).not.toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Histórico de operações' })).toBeInTheDocument()
     const callsAfterTerminal = operationCalls
     await new Promise((r) => setTimeout(r, 1800))
     expect(operationCalls).toBe(callsAfterTerminal)

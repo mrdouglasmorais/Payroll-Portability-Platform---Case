@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { AgendaStep } from './components/AgendaStep'
 import { ConsentStep } from './components/ConsentStep'
 import { DestinationStep } from './components/DestinationStep'
+import { HistoryPanel } from './components/HistoryPanel'
 import { OperationSummary } from './components/OperationSummary'
 import { PortabilityStepper } from './components/PortabilityStepper'
 import { ReviewStep } from './components/ReviewStep'
@@ -53,18 +54,29 @@ export function PortabilityWizard() {
         />
 
         {flow.workflow.step === 'consentimento' ? (
-          <ConsentStep
-            beneficiaryId={flow.beneficiaryId}
-            agreementId={flow.agreementId}
-            showAdvancedIds={flow.showAdvancedIds}
-            isPending={flow.authorizeMutation.isPending}
-            inlineError={flow.inlineError}
-            onBeneficiaryChange={flow.setBeneficiaryId}
-            onAgreementChange={flow.setAgreementId}
-            onToggleAdvanced={() => flow.setShowAdvancedIds((v) => !v)}
-            onApplyDemo={flow.applyDemoIdentity}
-            onSubmit={() => flow.authorizeMutation.mutate()}
-          />
+          <>
+            <ConsentStep
+              beneficiaryId={flow.beneficiaryId}
+              agreementId={flow.agreementId}
+              showAdvancedIds={flow.showAdvancedIds}
+              isPending={flow.authorizeMutation.isPending}
+              inlineError={flow.inlineError}
+              onBeneficiaryChange={flow.setBeneficiaryId}
+              onAgreementChange={flow.setAgreementId}
+              onToggleAdvanced={() => flow.setShowAdvancedIds((v) => !v)}
+              onApplyDemo={flow.applyDemoIdentity}
+              onSubmit={() => flow.authorizeMutation.mutate()}
+            />
+            <HistoryPanel
+              beneficiaryId={flow.beneficiaryId}
+              currentOperationId={flow.workflow.operationId}
+              historyQuery={flow.historyQuery}
+              describeError={flow.describeError}
+              onOpenOperation={flow.openOperation}
+              onPreviousPage={flow.goHistoryPrevious}
+              onNextPage={flow.goHistoryNext}
+            />
+          </>
         ) : null}
 
         {flow.workflow.step === 'agenda' ? (
@@ -109,13 +121,24 @@ export function PortabilityWizard() {
         ) : null}
 
         {flow.workflow.step === 'acompanhamento' && flow.workflow.operationId ? (
-          <TrackingStep
-            operationId={flow.workflow.operationId}
-            statusQuery={flow.statusQuery}
-            eventsQuery={flow.eventsQuery}
-            describeError={flow.describeError}
-            onRestart={flow.startOver}
-          />
+          <>
+            <TrackingStep
+              operationId={flow.workflow.operationId}
+              statusQuery={flow.statusQuery}
+              eventsQuery={flow.eventsQuery}
+              describeError={flow.describeError}
+              onRestart={flow.startOver}
+            />
+            <HistoryPanel
+              beneficiaryId={flow.beneficiaryId}
+              currentOperationId={flow.workflow.operationId}
+              historyQuery={flow.historyQuery}
+              describeError={flow.describeError}
+              onOpenOperation={flow.openOperation}
+              onPreviousPage={flow.goHistoryPrevious}
+              onNextPage={flow.goHistoryNext}
+            />
+          </>
         ) : null}
       </section>
 
@@ -127,6 +150,8 @@ export function PortabilityWizard() {
         selectedItems={selectedItems}
         creditor={flow.creditor}
         account={flow.account}
+        trackedAccount={flow.statusQuery.data?.contaRecebimento}
+        contaEfetivada={flow.statusQuery.data?.contaEfetivada}
         operationId={flow.workflow.operationId}
         businessStatus={flow.statusQuery.data?.status}
       />

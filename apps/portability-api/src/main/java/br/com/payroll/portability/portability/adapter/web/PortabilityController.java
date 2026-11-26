@@ -4,19 +4,27 @@ import br.com.payroll.portability.beneficiary.application.BeneficiaryRepository;
 import br.com.payroll.portability.portability.adapter.web.dto.CreatePortabilityRequest;
 import br.com.payroll.portability.portability.adapter.web.dto.CreatePortabilityResponse;
 import br.com.payroll.portability.portability.adapter.web.dto.OperationEventResponse;
+import br.com.payroll.portability.portability.adapter.web.dto.OperationListItemResponse;
+import br.com.payroll.portability.portability.adapter.web.dto.OperationPageResponse;
 import br.com.payroll.portability.portability.adapter.web.dto.OperationStatusResponse;
 import br.com.payroll.portability.portability.adapter.web.dto.ProcessingStatusResponse;
+import br.com.payroll.portability.portability.adapter.web.dto.ReceivingAccountView;
 import br.com.payroll.portability.portability.application.CreatePortabilityService;
+import br.com.payroll.portability.portability.application.OperationPage;
+import br.com.payroll.portability.portability.application.OperationSummary;
 import br.com.payroll.portability.portability.application.PortabilityOperationRepository;
 import br.com.payroll.portability.portability.application.ProcessingJob;
 import br.com.payroll.portability.portability.application.ProcessingJobRepository;
 import br.com.payroll.portability.portability.application.RequestHash;
+import br.com.payroll.portability.portability.domain.BusinessStatus;
 import br.com.payroll.portability.portability.domain.PortabilityCommand;
 import br.com.payroll.portability.portability.domain.PortabilityOperation;
 import br.com.payroll.portability.portability.domain.ReceivingAccount;
 import br.com.payroll.portability.portability.domain.TechnicalJobStatus;
 import br.com.payroll.portability.shared.domain.DomainException;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import java.util.LinkedHashSet;
@@ -31,6 +39,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -52,6 +61,23 @@ public class PortabilityController {
     this.operationRepository = operationRepository;
     this.jobRepository = jobRepository;
     this.beneficiaryRepository = beneficiaryRepository;
+  }
+
+  @GetMapping("/api/v1/operacoes-portabilidade")
+  public OperationPageResponse list(
+      @RequestParam("beneficiarioId") @NotBlank @Size(max = 128) String beneficiarioId,
+      @RequestParam(value = "page", defaultValue = "0") @Min(0) int page,
+      @RequestParam(value = "size", defaultValue = "10") @Min(1) @Max(100) int size) {
+    OperationPage result =
+        operationRepository.pageByBeneficiaryExternalRef(beneficiarioId.trim(), page, size);
+    return new OperationPageResponse(
+        result.items().stream().map(this::toListItem).toList(),
+        result.page(),
+        result.size(),
+        result.totalElements(),
+        result.totalPages(),
+        result.hasNext(),
+        result.hasPrevious());
   }
 
   @PostMapping("/api/v1/operacoes-portabilidade")
@@ -109,12 +135,15 @@ public class PortabilityController {
             .findById(operationId)
             .orElseThrow(
                 () -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Não encontrado"));
+    boolean efetivada = operation.businessStatus() == BusinessStatus.CONFIRMADA;
     return new OperationStatusResponse(
         operation.id().toString(),
         operation.businessStatus().name(),
         operation.rejectionReason(),
         operation.correlationId(),
         operation.centralProtocol(),
+        ReceivingAccountView.masked(operation.receivingAccount()),
+        efetivada,
         processingView(operationId));
   }
 
@@ -132,6 +161,18 @@ public class PortabilityController {
                     event.occurredAt().toString(),
                     event.description()))
         .toList();
+  }
+
+  private OperationListItemResponse toListItem(OperationSummary summary) {
+    boolean efetivada = summary.businessStatus() == BusinessStatus.CONFIRMADA;
+    return new OperationListItemResponse(
+        summary.id().toString(),
+        summary.businessStatus().name(),
+        summary.createdAt().toString(),
+        summary.correlationId(),
+        summary.centralProtocol(),
+        ReceivingAccountView.masked(summary.receivingAccount()),
+        efetivada);
   }
 
   private ProcessingStatusResponse processingView(UUID operationId) {

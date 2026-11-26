@@ -29,6 +29,12 @@ public interface PortabilityOperationRepository {
 
   Optional<PortabilityOperation> findById(UUID operationId);
 
+  /**
+   * Paginated operations for a beneficiary external ref, newest first. Empty page when unknown
+   * beneficiary.
+   */
+  OperationPage pageByBeneficiaryExternalRef(String externalRef, int page, int size);
+
   void saveOutcome(PortabilityOperation operation);
 
   /** Optimistic transition: updates only while previous business status matches. */

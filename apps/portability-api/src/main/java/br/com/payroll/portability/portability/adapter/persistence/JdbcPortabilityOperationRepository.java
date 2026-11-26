@@ -1,5 +1,7 @@
 package br.com.payroll.portability.portability.adapter.persistence;
 
+import br.com.payroll.portability.portability.application.OperationPage;
+import br.com.payroll.portability.portability.application.OperationSummary;
 import br.com.payroll.portability.portability.application.PortabilityOperationRepository;
 import br.com.payroll.portability.portability.domain.BusinessStatus;
 import br.com.payroll.portability.portability.domain.OperationEvent;
@@ -253,6 +255,53 @@ public class JdbcPortabilityOperationRepository implements PortabilityOperationR
             },
             operationId);
     return ops.stream().findFirst();
+  }
+
+  @Override
+  public OperationPage pageByBeneficiaryExternalRef(String externalRef, int page, int size) {
+    int safePage = Math.max(page, 0);
+    int safeSize = Math.min(Math.max(size, 1), 100);
+    Long total =
+        jdbc.query(
+            """
+            SELECT COUNT(*) AS total
+            FROM portability_operations o
+            INNER JOIN beneficiaries b ON b.id = o.beneficiary_id
+            WHERE b.external_ref = ?
+            """,
+            rs -> rs.next() ? rs.getLong("total") : 0L,
+            externalRef);
+    long totalElements = total == null ? 0L : total;
+    if (totalElements == 0L) {
+      return new OperationPage(List.of(), safePage, safeSize, 0L);
+    }
+    int offset = safePage * safeSize;
+    List<OperationSummary> items =
+        jdbc.query(
+            """
+            SELECT o.id, o.business_status, o.created_at, o.correlation_id, o.central_protocol,
+                   o.receiving_bank, o.receiving_agency, o.receiving_account
+            FROM portability_operations o
+            INNER JOIN beneficiaries b ON b.id = o.beneficiary_id
+            WHERE b.external_ref = ?
+            ORDER BY o.created_at DESC, o.id DESC
+            LIMIT ? OFFSET ?
+            """,
+            (rs, rowNum) ->
+                new OperationSummary(
+                    UUID.fromString(rs.getString("id")),
+                    BusinessStatus.valueOf(rs.getString("business_status")),
+                    rs.getTimestamp("created_at").toInstant(),
+                    rs.getString("correlation_id"),
+                    rs.getString("central_protocol"),
+                    new ReceivingAccount(
+                        rs.getString("receiving_bank"),
+                        rs.getString("receiving_agency"),
+                        rs.getString("receiving_account"))),
+            externalRef,
+            safeSize,
+            offset);
+    return new OperationPage(items, safePage, safeSize, totalElements);
   }
 
   @Override

@@ -186,13 +186,105 @@ class PortabilityApiWebTest {
         .andExpect(jsonPath("$.status").value("PENDENTE"))
         .andExpect(jsonPath("$.operationId").value(operationId))
         .andExpect(jsonPath("$.centralProtocol").value(nullValue()))
+        .andExpect(jsonPath("$.contaRecebimento.banco").value("001"))
+        .andExpect(jsonPath("$.contaRecebimento.agencia").value("1234"))
+        .andExpect(jsonPath("$.contaRecebimento.conta").value("****99-0"))
+        .andExpect(jsonPath("$.contaEfetivada").value(false))
         .andExpect(jsonPath("$.processing.status").exists())
         .andExpect(jsonPath("$.processing.requiresAction").value(false));
+
+    mockMvc
+        .perform(
+            get("/api/v1/operacoes-portabilidade")
+                .param("beneficiarioId", "ben-web")
+                .param("page", "0")
+                .param("size", "10"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.items[0].operationId").value(operationId))
+        .andExpect(jsonPath("$.items[0].status").value("PENDENTE"))
+        .andExpect(jsonPath("$.items[0].contaRecebimento.conta").value("****99-0"))
+        .andExpect(jsonPath("$.items[0].contaEfetivada").value(false))
+        .andExpect(jsonPath("$.page").value(0))
+        .andExpect(jsonPath("$.size").value(10))
+        .andExpect(jsonPath("$.totalElements").value(1))
+        .andExpect(jsonPath("$.totalPages").value(1))
+        .andExpect(jsonPath("$.hasNext").value(false))
+        .andExpect(jsonPath("$.hasPrevious").value(false));
+
+    mockMvc
+        .perform(get("/api/v1/operacoes-portabilidade").param("beneficiarioId", "ben-unknown"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.items").isEmpty())
+        .andExpect(jsonPath("$.totalElements").value(0))
+        .andExpect(jsonPath("$.totalPages").value(0))
+        .andExpect(jsonPath("$.hasNext").value(false));
 
     mockMvc
         .perform(get("/api/v1/operacoes-portabilidade/" + operationId + "/eventos"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$[0].eventType").value("OPERATION_CREATED"));
+  }
+
+  @Test
+  void listOperationsReturnsPaginatedPages() throws Exception {
+    String bodyTemplate =
+        """
+        {
+          "beneficiarioId":"ben-web",
+          "parcelas":["parcela-web-%d"],
+          "credorCessionario":"creditor-x",
+          "contaRecebimento":{"banco":"001","agencia":"1234","conta":"999-0"}
+        }
+        """;
+
+    for (int i = 2; i <= 3; i++) {
+      installmentRepository.save(
+          new InstallmentSnapshot(
+              UUID.randomUUID(),
+              "parcela-web-" + i,
+              beneficiaryId,
+              "conv-1",
+              Money.of("10.00"),
+              LocalDate.of(2026, 12, i),
+              InstallmentStatus.OPEN));
+    }
+
+    for (int i = 1; i <= 3; i++) {
+      mockMvc
+          .perform(
+              post("/api/v1/operacoes-portabilidade")
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .header("Idempotency-Key", "web-page-" + i)
+                  .content(String.format(bodyTemplate, i)))
+          .andExpect(status().isAccepted());
+    }
+
+    mockMvc
+        .perform(
+            get("/api/v1/operacoes-portabilidade")
+                .param("beneficiarioId", "ben-web")
+                .param("page", "0")
+                .param("size", "2"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.items.length()").value(2))
+        .andExpect(jsonPath("$.page").value(0))
+        .andExpect(jsonPath("$.size").value(2))
+        .andExpect(jsonPath("$.totalElements").value(3))
+        .andExpect(jsonPath("$.totalPages").value(2))
+        .andExpect(jsonPath("$.hasNext").value(true))
+        .andExpect(jsonPath("$.hasPrevious").value(false));
+
+    mockMvc
+        .perform(
+            get("/api/v1/operacoes-portabilidade")
+                .param("beneficiarioId", "ben-web")
+                .param("page", "1")
+                .param("size", "2"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.items.length()").value(1))
+        .andExpect(jsonPath("$.page").value(1))
+        .andExpect(jsonPath("$.hasNext").value(false))
+        .andExpect(jsonPath("$.hasPrevious").value(true));
   }
 
   @Test

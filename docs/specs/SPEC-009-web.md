@@ -5,10 +5,10 @@ Status: Accepted
 Source mapping: RF1–RF6. Identifiers assigned locally, not in original challenge.
 
 ## Behavior
-Operator can register opt-in, query agenda, select installments, enter destination, review, submit and see timeline; UI polls local API only; mask sensitive fields. Console branding uses Cielo tokens/assets; Compose lab serves Vite with HMR on `:5173` (Dockerfile `dev` target + bind-mount). Production-style static image remains Dockerfile `runtime` (nginx).
+Operator can register opt-in, query agenda, select installments, enter destination, review, submit and see timeline; UI polls local API only; mask sensitive fields. Tracking shows masked destination and whether the account was efetivada (CONFIRMADA) or preservada (REJEITADA). Consent and tracking expose paginated operation history via `GET /api/v1/operacoes-portabilidade?beneficiarioId=&page=&size=` (`OperationPage`). Console branding uses Cielo tokens/assets; Compose lab serves Vite with HMR on `:5173` (Dockerfile `dev` target + bind-mount). Production-style static image remains Dockerfile `runtime` (nginx).
 
 ## Acceptance
-End-to-end success/rejection/failure flows; no duplicate on repeated submit; polling stops terminal. Accessibility **smoke** (axe wcag2a/aa + keyboard) across wizard steps on desktop and mobile — not a claim of full WCAG 2.2 AA certification.
+End-to-end success/rejection/failure flows; no duplicate on repeated submit; polling stops terminal; paginated history opens prior ops; tracking shows masked account before/after efetivação. Accessibility **smoke** (axe wcag2a/aa + keyboard) across wizard steps on desktop and mobile — not a claim of full WCAG 2.2 AA certification.
 
 ## Evidence
 - Unit: `PortabilityWizard.test.tsx` (idempotent resubmit, polling stops on terminal), `mask.test.ts`, `pnpm test` / `pnpm build`.

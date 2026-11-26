@@ -203,6 +203,42 @@ Serviço Spring Boot independente, banco próprio. Contrato sugerido (`/autoriza
 
 Comece pelo Miro no [mapa 00](https://miro.com/app/board/uXjVEJ1cEDw=/?share_link_id=843643210573&moveToWidget=3458764691629361954) e pelo índice em [system-design.md](docs/architecture/system-design.md). ADRs em `docs/adr/`. Detalhes: [idempotência](docs/architecture/idempotency-and-integrity.md), [lease do worker](docs/architecture/worker-lease.md), [observabilidade](docs/architecture/observability.md), [modelo de dados](docs/architecture/data-model.md), [Maven](docs/dev/maven.md).
 
+## Bibliotecas externas utilizadas e justificativas
+
+Somente dependências de produto/teste relevantes ao case (não lista transitivas do Spring Boot). Fontes: `apps/*/pom.xml`, `apps/web/package.json`, `tests/e2e/package.json`, `redocly.yaml`.
+
+### Backend (portability-api e central-simulator)
+
+| Biblioteca | Por quê |
+| --- | --- |
+| Spring Boot (Web, Validation, JDBC, Actuator) | HTTP + validação + SQL sem ORM; health/métricas para laboratório e Compose |
+| Flyway (+ flyway-database-postgresql) | Migrações versionadas e reprodutíveis nos dois Postgres |
+| PostgreSQL JDBC | Persistência tipada (`NUMERIC`/`timestamptz`); sem floating point monetário |
+| Micrometer Prometheus | Contadores RED/USE scrapeáveis; fonte contábil continua sendo o banco + auditoria |
+| Spring OpenTelemetry | Traces OTLP correlacionados API↔Central no stack LGTM local |
+| JUnit 5 (via spring-boot-starter-test) | Testes de domínio, integração e contratos HTTP |
+| Testcontainers (JUnit + PostgreSQL) | Postgres real nos testes de integração (Flyway, reserva, lease) |
+| ArchUnit | Guarda limites hexagonais (domínio sem Spring/JPA/HTTP) |
+
+### Frontend (`apps/web`)
+
+| Biblioteca | Por quê |
+| --- | --- |
+| React 19 + Vite + TypeScript | Console tipado, build rápido, HMR no Compose |
+| @tanstack/react-query | Cache/refetch do acompanhamento assíncrono sem estado global ad hoc |
+| Vitest + Testing Library + jsdom | Testes de fluxo/UI no Node, alinhados ao comportamento do operador |
+| oxlint | Lint rápido no CI local sem ESLint monolítico |
+
+### Contratos, E2E e qualidade
+
+| Biblioteca / ferramenta | Por quê |
+| --- | --- |
+| Redocly CLI | Lint OpenAPI da plataforma e da Central no CI |
+| Playwright | E2E do console contra stack Compose |
+| @axe-core/playwright | Smoke de acessibilidade (não certificação WCAG integral) |
+
+Stack de observabilidade local (Grafana/Tempo/Loki via `otel-lgtm`, Prometheus scrape) está no Compose; não são libs da aplicação.
+
 ## Harness de IA
 
 O desafio pede uso auditável de IA. Skills em `.agents/skills/`; evidências em `ai/sessions/`. Humanos aprovam commits e invariantes financeiras. Exemplos de correção/rejeição de sugestões da IA: [ai/README.md](ai/README.md).

@@ -4,6 +4,7 @@ import type {
   ApiStatus,
   AuthorizationRequest,
   OperationEvent,
+  OperationPage,
   OperationStatus,
   PortabilityRequest,
 } from './types'
@@ -56,6 +57,30 @@ export const portabilityApiService = {
       body: JSON.stringify(body),
       idempotencyKey,
     })
+  },
+
+  async listOperations(beneficiarioId: string, page = 0, size = 10) {
+    const params = new URLSearchParams({
+      beneficiarioId,
+      page: String(page),
+      size: String(size),
+    })
+    const raw = await httpRequest<OperationPage | OperationPage['items']>(
+      `/api/v1/operacoes-portabilidade?${params.toString()}`,
+    )
+    // Tolerate legacy array payloads if an old API image is still running.
+    if (Array.isArray(raw)) {
+      return {
+        items: raw,
+        page,
+        size,
+        totalElements: raw.length,
+        totalPages: raw.length === 0 ? 0 : 1,
+        hasNext: false,
+        hasPrevious: false,
+      } satisfies OperationPage
+    }
+    return raw
   },
 
   getOperation(operationId: string) {

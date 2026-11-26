@@ -96,6 +96,45 @@ paths:
         '503':
           description: Unavailable
   /api/v1/operacoes-portabilidade:
+    get:
+      summary: List portability operations for a beneficiary (paginated)
+      operationId: listPortabilityOperations
+      security: []
+      parameters:
+      - in: query
+        name: beneficiarioId
+        required: true
+        schema: *id001
+      - in: query
+        name: page
+        required: false
+        description: Zero-based page index
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+      - in: query
+        name: size
+        required: false
+        description: Page size
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 10
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperationPage'
+        '400':
+          description: Invalid request
+        '403':
+          description: Not authorized
+        '503':
+          description: Unavailable
     post:
       summary: Create portability operation
       operationId: createPortabilityOperation
@@ -172,59 +211,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  operationId: *id001
-                  status:
-                    type: string
-                    enum:
-                    - PENDENTE
-                    - CONFIRMADA
-                    - REJEITADA
-                  motivoRejeicao:
-                    type:
-                    - string
-                    - 'null'
-                  correlationId: *id001
-                  centralProtocol:
-                    type:
-                    - string
-                    - 'null'
-                  processing:
-                    type: object
-                    properties:
-                      status:
-                        type: string
-                        enum:
-                        - PENDING
-                        - RUNNING
-                        - RETRYING
-                        - SUCCEEDED
-                        - REQUIRES_REVIEW
-                        - UNKNOWN
-                      attemptCount:
-                        type: integer
-                        minimum: 0
-                      errorCode:
-                        type:
-                        - string
-                        - 'null'
-                      requiresAction:
-                        type: boolean
-                    required:
-                    - status
-                    - attemptCount
-                    - errorCode
-                    - requiresAction
-                    additionalProperties: false
-                required:
-                - operationId
-                - status
-                - motivoRejeicao
-                - correlationId
-                - centralProtocol
-                - processing
-                additionalProperties: false
+                $ref: '#/components/schemas/OperationStatus'
         '403':
           description: Not authorized
         '404':
@@ -273,6 +260,143 @@ paths:
 
 components:
   schemas:
+    ReceivingAccountView:
+      type: object
+      description: Destination account with conta masked (****last4)
+      properties:
+        banco: *id001
+        agencia: *id001
+        conta: *id001
+      required:
+      - banco
+      - agencia
+      - conta
+      additionalProperties: false
+    OperationListItem:
+      type: object
+      properties:
+        operationId: *id001
+        status:
+          type: string
+          enum:
+          - PENDENTE
+          - CONFIRMADA
+          - REJEITADA
+        createdAt:
+          type: string
+          format: date-time
+        correlationId: *id001
+        centralProtocol:
+          type:
+          - string
+          - 'null'
+        contaRecebimento:
+          $ref: '#/components/schemas/ReceivingAccountView'
+        contaEfetivada:
+          type: boolean
+          description: True only when business status is CONFIRMADA (account applied to installments)
+      required:
+      - operationId
+      - status
+      - createdAt
+      - correlationId
+      - centralProtocol
+      - contaRecebimento
+      - contaEfetivada
+      additionalProperties: false
+    OperationPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OperationListItem'
+        page:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+          minimum: 1
+        totalElements:
+          type: integer
+          minimum: 0
+        totalPages:
+          type: integer
+          minimum: 0
+        hasNext:
+          type: boolean
+        hasPrevious:
+          type: boolean
+      required:
+      - items
+      - page
+      - size
+      - totalElements
+      - totalPages
+      - hasNext
+      - hasPrevious
+      additionalProperties: false
+    OperationStatus:
+      type: object
+      properties:
+        operationId: *id001
+        status:
+          type: string
+          enum:
+          - PENDENTE
+          - CONFIRMADA
+          - REJEITADA
+        motivoRejeicao:
+          type:
+          - string
+          - 'null'
+        correlationId: *id001
+        centralProtocol:
+          type:
+          - string
+          - 'null'
+        contaRecebimento:
+          $ref: '#/components/schemas/ReceivingAccountView'
+        contaEfetivada:
+          type: boolean
+          description: True only when business status is CONFIRMADA
+        processing:
+          type: object
+          properties:
+            status:
+              type: string
+              enum:
+              - PENDING
+              - RUNNING
+              - RETRYING
+              - SUCCEEDED
+              - REQUIRES_REVIEW
+              - UNKNOWN
+            attemptCount:
+              type: integer
+              minimum: 0
+            errorCode:
+              type:
+              - string
+              - 'null'
+            requiresAction:
+              type: boolean
+          required:
+          - status
+          - attemptCount
+          - errorCode
+          - requiresAction
+          additionalProperties: false
+      required:
+      - operationId
+      - status
+      - motivoRejeicao
+      - correlationId
+      - centralProtocol
+      - contaRecebimento
+      - contaEfetivada
+      - processing
+      additionalProperties: false
     ProblemDetail:
       type: object
       description: RFC 9457 problem details (Spring ProblemDetail)
