@@ -20,7 +20,8 @@ function formatMoney(value: number | string): string {
 export function PortabilityWizard() {
   const formId = useId()
   const [step, setStep] = useState<Step>('consent')
-  const [beneficiaryId, setBeneficiaryId] = useState('ben-001')
+  // ben-ui keeps dedicated OPEN parcels for the operator console (isolated from k6/E2E contention on ben-001).
+  const [beneficiaryId, setBeneficiaryId] = useState('ben-ui')
   const [agreementId, setAgreementId] = useState('conv-1')
   const [authorizationId, setAuthorizationId] = useState<string | null>(null)
   const [agenda, setAgenda] = useState<AgendaItem[]>([])
@@ -121,6 +122,12 @@ export function PortabilityWizard() {
   }
 
   function goDestination() {
+    if (agenda.length === 0) {
+      setBanner(
+        'No open installments for this beneficiary. Try ben-ui / conv-1, or reset Central demo parcels.',
+      )
+      return
+    }
     if (selected.length === 0) {
       setBanner('Select at least one installment')
       return
@@ -218,7 +225,11 @@ export function PortabilityWizard() {
             Authorization <code>{authorizationId}</code>. Select open installments.
           </p>
           {agenda.length === 0 ? (
-            <p>No open installments returned.</p>
+            <p role="status">
+              No open installments returned from Central for{' '}
+              <code>{beneficiaryId}</code>. Demo beneficiary with reserved OPEN parcels:{' '}
+              <code>ben-ui</code> / <code>conv-1</code>.
+            </p>
           ) : (
             <ul className="agenda-list">
               {agenda.map((item) => {

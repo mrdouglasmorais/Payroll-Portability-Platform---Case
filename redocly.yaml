@@ -1,0 +1,10 @@
+# OpenAPI quality gate for CI. Softens rules that do not apply to this HMAC lab contract
+# while keeping structural validation (servers, summaries, security declared).
+extends:
+  - recommended
+
+rules:
+  info-license: warn
+  operation-operationId: warn
+  no-unused-components: warn
+  no-server-example.com: warn

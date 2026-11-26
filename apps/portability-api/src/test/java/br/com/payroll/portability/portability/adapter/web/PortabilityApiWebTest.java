@@ -1,5 +1,6 @@
 package br.com.payroll.portability.portability.adapter.web;
 
+import static org.hamcrest.Matchers.nullValue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -177,6 +178,7 @@ class PortabilityApiWebTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.status").value("PENDENTE"))
         .andExpect(jsonPath("$.operationId").value(operationId))
+        .andExpect(jsonPath("$.centralProtocol").value(nullValue()))
         .andExpect(jsonPath("$.processing.status").exists())
         .andExpect(jsonPath("$.processing.requiresAction").value(false));
 

@@ -109,6 +109,7 @@ public class PortabilityController {
     body.put("status", operation.businessStatus().name());
     body.put("motivoRejeicao", operation.rejectionReason());
     body.put("correlationId", operation.correlationId());
+    body.put("centralProtocol", operation.centralProtocol());
     body.put("processing", processingView(operationId));
     return body;
   }
@@ -153,36 +154,19 @@ public class PortabilityController {
       status = "SUCCEEDED";
     } else if (tech == TechnicalJobStatus.RUNNING) {
       status = "RUNNING";
-    } else if (tech == TechnicalJobStatus.FAILED) {
+    } else if (tech == TechnicalJobStatus.FAILED
+        || (tech == TechnicalJobStatus.PENDING
+            && job.attemptCount() > 0
+            && job.lastError() != null)) {
       status = "RETRYING";
     } else {
       status = "PENDING";
     }
     processing.put("status", status);
     processing.put("attemptCount", job.attemptCount());
-    processing.put("errorCode", classifyError(job.lastError()));
+    processing.put("errorCode", job.lastErrorCode());
     processing.put("requiresAction", requiresAction);
     return processing;
-  }
-
-  private static String classifyError(String lastError) {
-    if (lastError == null || lastError.isBlank()) {
-      return null;
-    }
-    String upper = lastError.toUpperCase();
-    if (upper.contains("UNAVAILABLE") || upper.contains("503") || upper.contains("502")) {
-      return "CENTRAL_UNAVAILABLE";
-    }
-    if (upper.contains("POLL_DEADLINE")) {
-      return "POLL_DEADLINE_EXCEEDED";
-    }
-    if (upper.contains("RATE LIMITED") || upper.contains("429")) {
-      return "CENTRAL_RATE_LIMITED";
-    }
-    if (upper.contains("SIGNATURE")) {
-      return "HMAC_FAILURE";
-    }
-    return "INTEGRATION_ERROR";
   }
 
   private static String string(Map<String, ?> body, String field) {

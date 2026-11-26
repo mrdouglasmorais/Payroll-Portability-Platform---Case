@@ -14,4 +14,5 @@ public record ProcessingJob(
     Instant leaseUntil,
     long fenceToken,
     Instant nextRunAt,
-    String lastError) {}
+    String lastError,
+    String lastErrorCode) {}

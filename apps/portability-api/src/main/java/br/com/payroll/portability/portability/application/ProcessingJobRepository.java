@@ -8,6 +8,9 @@ public interface ProcessingJobRepository {
 
   Optional<ProcessingJob> claimNext(String workerId, Instant now, Instant leaseUntil);
 
+  /** Locks the job row for the duration of the current transaction; empty if fence lost. */
+  boolean lockOwnedFence(UUID jobId, long fenceToken, String workerId);
+
   boolean stillOwns(UUID jobId, long fenceToken, String workerId);
 
   void markSucceeded(UUID jobId, long fenceToken, Instant now);
@@ -21,9 +24,11 @@ public interface ProcessingJobRepository {
       Instant nextRunAt,
       int attemptCount,
       String lastError,
+      String lastErrorCode,
       Instant now);
 
-  void markExhausted(UUID jobId, long fenceToken, String lastError, Instant now);
+  void markExhausted(
+      UUID jobId, long fenceToken, String lastError, String lastErrorCode, Instant now);
 
   Optional<ProcessingJob> findByOperationId(UUID operationId);
 

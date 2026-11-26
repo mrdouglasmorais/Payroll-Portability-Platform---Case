@@ -2,11 +2,22 @@ openapi: 3.1.0
 info:
   title: Portability API
   version: 0.1.0
-  description: Proposed contract. HMAC signature in headers rather than body for Central;
-    see SPEC-006. Error schemas and signing details to finalize before implementation.
+  description: |
+    Platform contract. Laboratory auth uses HMAC headers toward Central; this API
+    currently exposes unauthenticated local operator routes (synthetic data only).
+  license:
+    name: Proprietary
+    identifier: LicenseRef-Proprietary
+servers:
+  - url: http://localhost:8080
+    description: Local Portability API
+security: []
 paths:
   /api/v1/autorizacoes:
     post:
+      summary: Request payroll discount authorization
+      operationId: createAuthorization
+      security: []
       requestBody:
         required: true
         content:
@@ -44,6 +55,9 @@ paths:
           description: Unavailable
   /api/v1/beneficiarios/{beneficiarioId}/agenda:
     get:
+      summary: Sync and list scoped installment agenda
+      operationId: getBeneficiaryAgenda
+      security: []
       parameters:
       - in: path
         name: beneficiarioId
@@ -83,6 +97,9 @@ paths:
           description: Unavailable
   /api/v1/operacoes-portabilidade:
     post:
+      summary: Create portability operation
+      operationId: createPortabilityOperation
+      security: []
       requestBody:
         required: true
         content:
@@ -141,6 +158,9 @@ paths:
         schema: *id001
   /api/v1/operacoes-portabilidade/{operationId}:
     get:
+      summary: Get operation business and processing status
+      operationId: getPortabilityOperation
+      security: []
       parameters:
       - in: path
         name: operationId
@@ -166,6 +186,10 @@ paths:
                     - string
                     - 'null'
                   correlationId: *id001
+                  centralProtocol:
+                    type:
+                    - string
+                    - 'null'
                   processing:
                     type: object
                     properties:
@@ -198,6 +222,7 @@ paths:
                 - status
                 - motivoRejeicao
                 - correlationId
+                - centralProtocol
                 - processing
                 additionalProperties: false
         '403':
@@ -208,6 +233,9 @@ paths:
           description: Unavailable
   /api/v1/operacoes-portabilidade/{operationId}/eventos:
     get:
+      summary: List append-only operation timeline events
+      operationId: listPortabilityOperationEvents
+      security: []
       parameters:
       - in: path
         name: operationId

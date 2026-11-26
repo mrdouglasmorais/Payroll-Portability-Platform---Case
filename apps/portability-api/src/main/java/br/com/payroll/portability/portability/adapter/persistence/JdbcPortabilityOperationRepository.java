@@ -294,6 +294,25 @@ public class JdbcPortabilityOperationRepository implements PortabilityOperationR
     return updated;
   }
 
+  @Override
+  public int appendEventsIfNonTerminal(PortabilityOperation operation) {
+    int touched =
+        jdbc.update(
+            """
+            UPDATE portability_operations
+            SET updated_at = ?
+            WHERE id = ? AND business_status = 'PENDENTE'
+            """,
+            Timestamp.from(operation.updatedAt()),
+            operation.id());
+    if (touched == 1) {
+      insertNewEvents(operation);
+    } else {
+      operation.pullNewEvents();
+    }
+    return touched;
+  }
+
   private void insertNewEvents(PortabilityOperation operation) {
     for (OperationEvent event : operation.pullNewEvents()) {
       jdbc.update(

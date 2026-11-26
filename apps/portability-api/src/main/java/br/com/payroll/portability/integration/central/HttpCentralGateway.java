@@ -107,7 +107,7 @@ public class HttpCentralGateway implements CentralGateway {
     String path = "/operacoes-portabilidade/" + protocol;
     ResponseEntity<byte[]> response = exchange("GET", path, "", new byte[0], null, correlationId);
     if (response.getStatusCode().value() == 204) {
-      return CentralStatus.pending();
+      return CentralStatus.pending(parseRetryAfter(response));
     }
     JsonNode json = readJson(response.getBody());
     String status = text(json, "status");

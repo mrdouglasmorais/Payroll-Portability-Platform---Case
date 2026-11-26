@@ -30,7 +30,8 @@ public class JdbcProcessingJobRepository implements ProcessingJobRepository {
                   : rs.getTimestamp("lease_until").toInstant(),
               rs.getLong("fence_token"),
               rs.getTimestamp("next_run_at").toInstant(),
-              rs.getString("last_error"));
+              rs.getString("last_error"),
+              rs.getString("last_error_code"));
 
   private final JdbcTemplate jdbc;
 
@@ -94,6 +95,25 @@ public class JdbcProcessingJobRepository implements ProcessingJobRepository {
   }
 
   @Override
+  public boolean lockOwnedFence(UUID jobId, long fenceToken, String workerId) {
+    List<UUID> locked =
+        jdbc.query(
+            """
+            SELECT id FROM processing_jobs
+            WHERE id = ?
+              AND fence_token = ?
+              AND lease_owner = ?
+              AND technical_status = 'RUNNING'
+            FOR UPDATE
+            """,
+            (rs, rowNum) -> UUID.fromString(rs.getString("id")),
+            jobId,
+            fenceToken,
+            workerId);
+    return !locked.isEmpty();
+  }
+
+  @Override
   public boolean stillOwns(UUID jobId, long fenceToken, String workerId) {
     Integer count =
         jdbc.queryForObject(
@@ -120,6 +140,7 @@ public class JdbcProcessingJobRepository implements ProcessingJobRepository {
             lease_owner = NULL,
             lease_until = NULL,
             last_error = NULL,
+            last_error_code = NULL,
             updated_at = ?
         WHERE id = ? AND fence_token = ?
         """,
@@ -137,6 +158,7 @@ public class JdbcProcessingJobRepository implements ProcessingJobRepository {
             lease_owner = NULL,
             lease_until = NULL,
             last_error = NULL,
+            last_error_code = NULL,
             updated_at = ?
         WHERE id = ? AND fence_token = ? AND lease_owner = ? AND technical_status = 'RUNNING'
         """,
@@ -154,42 +176,50 @@ public class JdbcProcessingJobRepository implements ProcessingJobRepository {
       Instant nextRunAt,
       int attemptCount,
       String lastError,
+      String lastErrorCode,
       Instant now) {
+    String technicalStatus = attemptCount > 0 ? "FAILED" : "PENDING";
     jdbc.update(
         """
         UPDATE processing_jobs
-        SET technical_status = 'PENDING',
+        SET technical_status = ?,
             job_type = ?,
             next_run_at = ?,
             attempt_count = ?,
             last_error = ?,
+            last_error_code = ?,
             lease_owner = NULL,
             lease_until = NULL,
             updated_at = ?
         WHERE id = ? AND fence_token = ?
         """,
+        technicalStatus,
         jobType,
         Timestamp.from(nextRunAt),
         attemptCount,
         lastError,
+        lastErrorCode,
         Timestamp.from(now),
         jobId,
         fenceToken);
   }
 
   @Override
-  public void markExhausted(UUID jobId, long fenceToken, String lastError, Instant now) {
+  public void markExhausted(
+      UUID jobId, long fenceToken, String lastError, String lastErrorCode, Instant now) {
     jdbc.update(
         """
         UPDATE processing_jobs
         SET technical_status = 'EXHAUSTED',
             last_error = ?,
+            last_error_code = ?,
             lease_owner = NULL,
             lease_until = NULL,
             updated_at = ?
         WHERE id = ? AND fence_token = ?
         """,
         lastError,
+        lastErrorCode,
         Timestamp.from(now),
         jobId,
         fenceToken);

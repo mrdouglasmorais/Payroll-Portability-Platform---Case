@@ -34,6 +34,11 @@ public interface PortabilityOperationRepository {
   /** Optimistic transition: updates only while previous business status matches. */
   int saveOutcomeIfPending(PortabilityOperation operation, BusinessStatus expectedStatus);
 
+  /**
+   * Persists new technical events without changing business_status; no-op (0) if terminal.
+   */
+  int appendEventsIfNonTerminal(PortabilityOperation operation);
+
   void consumeReservation(UUID operationId, String externalInstallmentId, Instant now);
 
   void releaseReservation(UUID operationId, String externalInstallmentId, Instant now);

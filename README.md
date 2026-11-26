@@ -17,6 +17,8 @@ Board Miro (fonte das decisões de arquitetura): https://miro.com/app/board/uXjV
 - **M5** Web console (operator flow, TanStack Query, accessible timeline)
 - **M6** Quality hardening (dual-stack E2E, Playwright, k6 lab smoke, acceptance mapping)
 - **M7** Failure recovery (lost-response protocol restore + worker restart resume)
+- **M8** Financial integrity (lease reclaim, fencing, effective account, ops visibility)
+- **M9** Financial correctness (transactional fence lock, Central effective account, typed errors, OpenAPI CI)
 
 ## Quick start (M1)
 

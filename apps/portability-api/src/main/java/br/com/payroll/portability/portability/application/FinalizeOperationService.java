@@ -32,14 +32,10 @@ public class FinalizeOperationService {
     this.clock = clock;
   }
 
-  /**
-   * Attach protocol only if the claiming worker still owns the fence; otherwise no-op for stale
-   * workers.
-   */
   @Transactional
   public boolean attachProtocolWithFence(
       UUID operationId, String protocol, UUID jobId, long fenceToken, String workerId) {
-    requireFence(jobId, fenceToken, workerId);
+    lockFenceOrThrow(jobId, fenceToken, workerId);
     PortabilityOperation operation =
         operationRepository.findById(operationId).orElseThrow();
     if (operation.centralProtocol() != null) {
@@ -48,13 +44,16 @@ public class FinalizeOperationService {
     Instant now = clock.instant();
     operation.attachProtocol(protocol, now);
     operationRepository.saveOutcome(operation);
+    if (!jobRepository.stillOwns(jobId, fenceToken, workerId)) {
+      throw new StaleFenceException("Fence lost after protocol attach");
+    }
     return true;
   }
 
   @Transactional
   public boolean confirmWithFence(
       UUID operationId, UUID jobId, long fenceToken, String workerId) {
-    requireFence(jobId, fenceToken, workerId);
+    lockFenceOrThrow(jobId, fenceToken, workerId);
     PortabilityOperation operation =
         operationRepository.findById(operationId).orElseThrow();
     if (operation.businessStatus().isTerminal()) {
@@ -74,13 +73,16 @@ public class FinalizeOperationService {
     if (updated == 0) {
       throw new StaleFenceException("Operation left PENDENTE concurrently");
     }
-    return jobRepository.markSucceededIfOwned(jobId, fenceToken, workerId, now) == 1;
+    if (jobRepository.markSucceededIfOwned(jobId, fenceToken, workerId, now) != 1) {
+      throw new StaleFenceException("Fence lost after financial confirm");
+    }
+    return true;
   }
 
   @Transactional
   public boolean rejectWithFence(
       UUID operationId, String reason, UUID jobId, long fenceToken, String workerId) {
-    requireFence(jobId, fenceToken, workerId);
+    lockFenceOrThrow(jobId, fenceToken, workerId);
     PortabilityOperation operation =
         operationRepository.findById(operationId).orElseThrow();
     if (operation.businessStatus().isTerminal()) {
@@ -117,20 +119,38 @@ public class FinalizeOperationService {
     if (updated == 0) {
       throw new StaleFenceException("Operation left PENDENTE concurrently");
     }
-    return jobRepository.markSucceededIfOwned(jobId, fenceToken, workerId, now) == 1;
+    if (jobRepository.markSucceededIfOwned(jobId, fenceToken, workerId, now) != 1) {
+      throw new StaleFenceException("Fence lost after financial reject");
+    }
+    return true;
   }
 
+  /**
+   * Appends a sanitized integration failure only while the fence is owned and the operation is
+   * still non-terminal — never regresses financial status.
+   */
   @Transactional
-  public void recordIntegrationFailure(UUID operationId, String sanitizedDescription) {
+  public boolean recordIntegrationFailureWithFence(
+      UUID operationId,
+      UUID jobId,
+      long fenceToken,
+      String workerId,
+      String sanitizedDescription) {
+    if (!jobRepository.lockOwnedFence(jobId, fenceToken, workerId)) {
+      return false;
+    }
     PortabilityOperation operation =
         operationRepository.findById(operationId).orElseThrow();
+    if (operation.businessStatus().isTerminal()) {
+      return false;
+    }
     Instant now = clock.instant();
     operation.recordTechnicalEvent("INTEGRATION_FAILURE", sanitizedDescription, now);
-    operationRepository.saveOutcome(operation);
+    return operationRepository.appendEventsIfNonTerminal(operation) == 1;
   }
 
-  private void requireFence(UUID jobId, long fenceToken, String workerId) {
-    if (!jobRepository.stillOwns(jobId, fenceToken, workerId)) {
+  private void lockFenceOrThrow(UUID jobId, long fenceToken, String workerId) {
+    if (!jobRepository.lockOwnedFence(jobId, fenceToken, workerId)) {
       throw new StaleFenceException("Job fence no longer owned by worker");
     }
   }

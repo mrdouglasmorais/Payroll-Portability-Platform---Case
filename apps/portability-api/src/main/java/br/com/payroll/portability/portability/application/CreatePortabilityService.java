@@ -9,6 +9,7 @@ import br.com.payroll.portability.schedule.domain.InstallmentStatus;
 import br.com.payroll.portability.shared.domain.DomainException;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -57,6 +58,7 @@ public class CreatePortabilityService {
         throw new DomainException("One or more installments were not found");
       }
 
+      LocalDate today = LocalDate.ofInstant(clock.instant(), clock.getZone());
       for (InstallmentSnapshot installment : installments) {
         if (!installment.beneficiaryId().equals(command.beneficiaryId())) {
           throw new DomainException("Installment does not belong to beneficiary");
@@ -64,6 +66,11 @@ public class CreatePortabilityService {
         if (installment.status() != InstallmentStatus.OPEN) {
           throw new DomainException(
               "Installment is not open: " + installment.externalInstallmentId());
+        }
+        if (installment.discountDate().isBefore(today)) {
+          throw new DomainException(
+              "Installment discount date is not eligible: "
+                  + installment.externalInstallmentId());
         }
         if (consentRepository
             .findAccepted(command.beneficiaryId(), installment.agreementId())

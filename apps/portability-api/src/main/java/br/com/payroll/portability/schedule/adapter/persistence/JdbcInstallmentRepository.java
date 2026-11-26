@@ -58,12 +58,18 @@ public class JdbcInstallmentRepository implements InstallmentRepository {
           """
           UPDATE installment_snapshots
           SET status = ?,
+              agreement_id = ?,
+              amount = ?,
+              discount_date = ?,
               effective_bank = ?,
               effective_agency = ?,
               effective_account = ?
           WHERE id = ?
           """,
           installment.status().name(),
+          installment.agreementId(),
+          installment.amount().amount(),
+          Date.valueOf(installment.discountDate()),
           installment.effectiveAccount().bank(),
           installment.effectiveAccount().agency(),
           installment.effectiveAccount().account(),

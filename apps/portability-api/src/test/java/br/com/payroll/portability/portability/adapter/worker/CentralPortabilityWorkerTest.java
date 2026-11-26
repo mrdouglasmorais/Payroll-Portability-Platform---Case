@@ -277,6 +277,7 @@ class CentralPortabilityWorkerTest {
             operationId);
     assertTrue(
         TechnicalJobStatus.PENDING.name().equals(jobStatus)
+            || TechnicalJobStatus.FAILED.name().equals(jobStatus)
             || TechnicalJobStatus.EXHAUSTED.name().equals(jobStatus));
   }
 

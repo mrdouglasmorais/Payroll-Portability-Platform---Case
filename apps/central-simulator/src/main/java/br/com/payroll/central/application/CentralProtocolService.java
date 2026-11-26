@@ -130,13 +130,15 @@ public class CentralProtocolService {
     }
 
     String requestHash = HmacCanonical.sha256Hex(rawBody.getBytes(StandardCharsets.UTF_8));
-    Optional<Map<String, String>> existing = findByIdempotency(idempotencyKey, requestHash);
-    if (existing.isPresent()) {
-      return existing.get();
+    Optional<Map<String, String>> claimed =
+        claimIdempotencyOrFind(idempotencyKey, requestHash);
+    if (claimed.isPresent()) {
+      return claimed.get();
     }
 
     FaultMode faultMode = parseFault(faultHeader, root.path("beneficiarioId").asText(""));
     if (faultMode == FaultMode.UNAVAILABLE) {
+      releaseIdempotencyClaim(idempotencyKey);
       throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Simulated outage");
     }
 
@@ -149,82 +151,82 @@ public class CentralProtocolService {
 
     Set<String> parcelas = new LinkedHashSet<>();
     if (!root.path("parcelas").isArray() || root.path("parcelas").isEmpty()) {
+      releaseIdempotencyClaim(idempotencyKey);
       throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "parcelas required");
     }
     root.path("parcelas").forEach(n -> parcelas.add(n.asText()));
 
-    ensureAuthorized(beneficiaryId, parcelas);
-    reserveInstallments(parcelas);
+    try {
+      ensureAuthorized(beneficiaryId, parcelas);
+      reserveInstallments(parcelas);
 
-    Instant now = clock.instant();
-    UUID protocolId = UUID.randomUUID();
-    String protocol = "prot-" + protocolId;
-    Instant confirmAfter =
-        faultMode == FaultMode.TIMEOUT ? null : now.plus(confirmDelay);
+      Instant now = clock.instant();
+      UUID protocolId = UUID.randomUUID();
+      String protocol = "prot-" + protocolId;
+      Instant confirmAfter =
+          faultMode == FaultMode.TIMEOUT ? null : now.plus(confirmDelay);
 
-    String initialStatus = "PENDENTE";
-    String rejection = null;
-    if (faultMode == FaultMode.REJECT) {
-      // stays pending until confirm_after, then becomes rejected on poll
-    }
+      String initialStatus = "PENDENTE";
+      String rejection = null;
 
-    jdbc.update(
-        """
-        INSERT INTO portability_protocols (
-          id, protocol, beneficiary_id, assignee_creditor, receiving_bank, receiving_agency,
-          receiving_account, business_status, rejection_reason, fault_mode, confirm_after,
-          correlation_id, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        protocolId,
-        protocol,
-        beneficiaryId,
-        creditor,
-        bank,
-        agency,
-        conta,
-        initialStatus,
-        rejection,
-        faultMode.name(),
-        confirmAfter == null ? null : Timestamp.from(confirmAfter),
-        "corr-central",
-        Timestamp.from(now),
-        Timestamp.from(now));
-
-    for (String parcela : parcelas) {
-      jdbc.update(
-          "INSERT INTO protocol_installments (protocol_id, external_installment_id) VALUES (?, ?)",
-          protocolId,
-          parcela);
       jdbc.update(
           """
-          INSERT INTO installment_reservations (
-            id, external_installment_id, protocol_id, status, created_at
-          ) VALUES (?, ?, ?, 'ACTIVE', ?)
+          INSERT INTO portability_protocols (
+            id, protocol, beneficiary_id, assignee_creditor, receiving_bank, receiving_agency,
+            receiving_account, business_status, rejection_reason, fault_mode, confirm_after,
+            correlation_id, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           """,
-          UUID.randomUUID(),
-          parcela,
           protocolId,
+          protocol,
+          beneficiaryId,
+          creditor,
+          bank,
+          agency,
+          conta,
+          initialStatus,
+          rejection,
+          faultMode.name(),
+          confirmAfter == null ? null : Timestamp.from(confirmAfter),
+          "corr-central",
+          Timestamp.from(now),
           Timestamp.from(now));
+
+      for (String parcela : parcelas) {
+        jdbc.update(
+            "INSERT INTO protocol_installments (protocol_id, external_installment_id) VALUES (?, ?)",
+            protocolId,
+            parcela);
+        jdbc.update(
+            """
+            INSERT INTO installment_reservations (
+              id, external_installment_id, protocol_id, status, created_at
+            ) VALUES (?, ?, ?, 'ACTIVE', ?)
+            """,
+            UUID.randomUUID(),
+            parcela,
+            protocolId,
+            Timestamp.from(now));
+        jdbc.update(
+            "UPDATE agenda_installments SET status = 'RESERVED' WHERE external_installment_id = ?",
+            parcela);
+      }
+
       jdbc.update(
-          "UPDATE agenda_installments SET status = 'RESERVED' WHERE external_installment_id = ?",
-          parcela);
+          """
+          UPDATE idempotency_keys
+          SET protocol_id = ?
+          WHERE scope = ? AND idempotency_key = ? AND protocol_id IS NULL
+          """,
+          protocolId,
+          PORTABILITY_SCOPE,
+          idempotencyKey);
+
+      return Map.of("protocolo", protocol);
+    } catch (RuntimeException ex) {
+      releaseIdempotencyClaim(idempotencyKey);
+      throw ex;
     }
-
-    jdbc.update(
-        """
-        INSERT INTO idempotency_keys (
-          id, scope, idempotency_key, request_hash, protocol_id, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?)
-        """,
-        UUID.randomUUID(),
-        PORTABILITY_SCOPE,
-        idempotencyKey,
-        requestHash,
-        protocolId,
-        Timestamp.from(now));
-
-    return Map.of("protocolo", protocol);
   }
 
   @Transactional
@@ -286,26 +288,60 @@ public class CentralProtocolService {
     return new ProtocolStatusView(row.status(), row.rejectionReason(), false);
   }
 
-  private Optional<Map<String, String>> findByIdempotency(String key, String requestHash) {
+  private Optional<Map<String, String>> claimIdempotencyOrFind(String key, String requestHash) {
+    int inserted =
+        jdbc.update(
+            """
+            INSERT INTO idempotency_keys (
+              id, scope, idempotency_key, request_hash, protocol_id, created_at
+            ) VALUES (?, ?, ?, ?, NULL, ?)
+            ON CONFLICT (scope, idempotency_key) DO NOTHING
+            """,
+            UUID.randomUUID(),
+            PORTABILITY_SCOPE,
+            key,
+            requestHash,
+            Timestamp.from(clock.instant()));
+    if (inserted == 1) {
+      return Optional.empty();
+    }
     var rows =
         jdbc.query(
             """
             SELECT k.request_hash, p.protocol
             FROM idempotency_keys k
-            JOIN portability_protocols p ON p.id = k.protocol_id
+            LEFT JOIN portability_protocols p ON p.id = k.protocol_id
             WHERE k.scope = ? AND k.idempotency_key = ?
+            FOR UPDATE OF k
             """,
-            (rs, rowNum) -> Map.entry(rs.getString("request_hash"), rs.getString("protocol")),
+            (rs, rowNum) ->
+                Map.entry(
+                    rs.getString("request_hash"),
+                    rs.getString("protocol")),
             PORTABILITY_SCOPE,
             key);
     if (rows.isEmpty()) {
-      return Optional.empty();
+      throw new IllegalStateException("Idempotency key missing after conflict");
     }
     var entry = rows.getFirst();
     if (!entry.getKey().equals(requestHash)) {
       throw new ResponseStatusException(HttpStatus.CONFLICT, "Idempotency key payload mismatch");
     }
+    if (entry.getValue() == null) {
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT, "Idempotency claim in flight; retry");
+    }
     return Optional.of(Map.of("protocolo", entry.getValue()));
+  }
+
+  private void releaseIdempotencyClaim(String key) {
+    jdbc.update(
+        """
+        DELETE FROM idempotency_keys
+        WHERE scope = ? AND idempotency_key = ? AND protocol_id IS NULL
+        """,
+        PORTABILITY_SCOPE,
+        key);
   }
 
   private void ensureAuthorized(String beneficiaryId, Set<String> parcelas) {
@@ -352,6 +388,7 @@ public class CentralProtocolService {
         WHERE protocol_id = ? AND status = 'ACTIVE'
         """,
         protocolId);
+    // Rejection keeps vigente (effective_*) unchanged.
     jdbc.update(
         """
         UPDATE agenda_installments a
@@ -372,8 +409,12 @@ public class CentralProtocolService {
     jdbc.update(
         """
         UPDATE agenda_installments a
-        SET status = 'PORTED'
+        SET status = 'PORTED',
+            effective_bank = p.receiving_bank,
+            effective_agency = p.receiving_agency,
+            effective_account = p.receiving_account
         FROM protocol_installments pi
+        JOIN portability_protocols p ON p.id = pi.protocol_id
         WHERE pi.protocol_id = ? AND pi.external_installment_id = a.external_installment_id
         """,
         protocolId);

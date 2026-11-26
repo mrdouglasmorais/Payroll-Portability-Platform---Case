@@ -6,6 +6,7 @@ import br.com.payroll.portability.integration.central.CentralGateway;
 import br.com.payroll.portability.integration.central.CentralPortabilityRequest;
 import br.com.payroll.portability.integration.central.CentralProperties;
 import br.com.payroll.portability.integration.central.CentralStatus;
+import br.com.payroll.portability.integration.central.IntegrationFailureCode;
 import br.com.payroll.portability.portability.application.FinalizeOperationService;
 import br.com.payroll.portability.portability.application.PortabilityOperationRepository;
 import br.com.payroll.portability.portability.application.ProcessingJob;
@@ -56,10 +57,6 @@ public class CentralPortabilityWorker {
     this.clock = clock;
   }
 
-  String workerId() {
-    return workerId;
-  }
-
   @Scheduled(fixedDelayString = "${app.central.worker-tick:PT1S}")
   public void tick() {
     if (!properties.isWorkerEnabled()) {
@@ -79,19 +76,31 @@ public class CentralPortabilityWorker {
       } else if (POLL.equals(job.jobType())) {
         poll(job);
       } else {
-        failTransient(job, "Unknown job type: " + job.jobType(), null);
+        failTransient(
+            job, "Unknown job type: " + job.jobType(), IntegrationFailureCode.INTEGRATION_ERROR, null);
       }
     } catch (StaleFenceException ex) {
       log.info("Stale fence on job {}; skipping financial mutation", job.id());
     } catch (CentralException ex) {
       if (ex.isPermanentFailure()) {
-        failPermanent(job, "Permanent central error: " + ex.getMessage());
+        failPermanent(
+            job,
+            "Permanent central error: " + ex.getMessage(),
+            IntegrationFailureCode.PERMANENT_CENTRAL_ERROR);
       } else {
-        failTransient(job, sanitizeError(ex.getMessage()), ex.retryAfter());
+        failTransient(
+            job,
+            sanitizeError(ex.getMessage()),
+            IntegrationFailureCode.fromCentral(ex),
+            ex.retryAfter());
       }
     } catch (RuntimeException ex) {
       log.warn("Worker failure on job {}", job.id(), ex);
-      failTransient(job, sanitizeError(ex.getMessage()), null);
+      failTransient(
+          job,
+          sanitizeError(ex.getMessage()),
+          IntegrationFailureCode.INTEGRATION_ERROR,
+          null);
     }
   }
 
@@ -99,7 +108,7 @@ public class CentralPortabilityWorker {
     PortabilityOperation operation =
         operationRepository.findById(job.operationId()).orElseThrow();
     if (operation.centralProtocol() != null) {
-      reschedulePoll(job, null);
+      reschedulePoll(job, null, null);
       return;
     }
 
@@ -119,13 +128,12 @@ public class CentralPortabilityWorker {
             operation.receivingAccount().agency(),
             operation.receivingAccount().account());
 
-    // HTTP outside DB transaction
     String protocol =
         centralGateway.submitPortability(request, idempotencyKey, operation.correlationId());
 
     finalizeOperationService.attachProtocolWithFence(
         operation.id(), protocol, job.id(), job.fenceToken(), owner(job));
-    reschedulePoll(job, null);
+    reschedulePoll(job, null, null);
   }
 
   private void poll(ProcessingJob job) {
@@ -138,23 +146,27 @@ public class CentralPortabilityWorker {
     }
 
     Instant now = clock.instant();
-    if (operation
-        .createdAt()
-        .plus(properties.getMaxPollDuration())
-        .isBefore(now)) {
-      failPermanent(job, "POLL_DEADLINE_EXCEEDED: escalate to reconciliation");
+    if (operation.createdAt().plus(properties.getMaxPollDuration()).isBefore(now)) {
+      failPermanent(
+          job,
+          "POLL_DEADLINE_EXCEEDED: escalate to reconciliation",
+          IntegrationFailureCode.POLL_DEADLINE_EXCEEDED);
       return;
     }
 
     String protocol = operation.centralProtocol();
     if (protocol == null || protocol.isBlank()) {
-      rescheduleAs(job, SUBMIT, "Missing protocol; re-submit", properties.getPollDelay());
+      rescheduleAs(job, SUBMIT, "Missing protocol; re-submit", null, properties.getPollDelay());
       return;
     }
 
     CentralStatus status = centralGateway.pollStatus(protocol, operation.correlationId());
     if (status.awaiting()) {
-      reschedulePoll(job, null);
+      Duration delay =
+          status.retryAfter() != null && !status.retryAfter().isZero()
+              ? status.retryAfter()
+              : properties.getPollDelay();
+      reschedulePoll(job, null, delay);
       return;
     }
 
@@ -173,14 +185,20 @@ public class CentralPortabilityWorker {
       return;
     }
 
-    failTransient(job, "Unexpected central status: " + status.status(), null);
+    failTransient(
+        job,
+        "Unexpected central status: " + status.status(),
+        IntegrationFailureCode.INTEGRATION_ERROR,
+        null);
   }
 
-  private void reschedulePoll(ProcessingJob job, String error) {
-    rescheduleAs(job, POLL, error, properties.getPollDelay());
+  private void reschedulePoll(ProcessingJob job, String error, Duration delayOverride) {
+    Duration delay = delayOverride == null ? properties.getPollDelay() : delayOverride;
+    rescheduleAs(job, POLL, error, null, delay);
   }
 
-  private void rescheduleAs(ProcessingJob job, String jobType, String error, Duration delay) {
+  private void rescheduleAs(
+      ProcessingJob job, String jobType, String error, String errorCode, Duration delay) {
     Instant now = clock.instant();
     jobRepository.reschedule(
         job.id(),
@@ -189,16 +207,23 @@ public class CentralPortabilityWorker {
         now.plus(delay),
         job.attemptCount(),
         error,
+        errorCode,
         now);
   }
 
-  private void failTransient(ProcessingJob job, String error, Duration retryAfter) {
+  private void failTransient(
+      ProcessingJob job,
+      String error,
+      IntegrationFailureCode code,
+      Duration retryAfter) {
     Instant now = clock.instant();
     int attempts = job.attemptCount() + 1;
     String sanitized = sanitizeError(error);
-    finalizeOperationService.recordIntegrationFailure(job.operationId(), sanitized);
+    finalizeOperationService.recordIntegrationFailureWithFence(
+        job.operationId(), job.id(), job.fenceToken(), owner(job), sanitized);
     if (attempts >= properties.getMaxAttempts()) {
-      jobRepository.markExhausted(job.id(), job.fenceToken(), sanitized, now);
+      jobRepository.markExhausted(
+          job.id(), job.fenceToken(), sanitized, code.name(), now);
       return;
     }
     Duration backoff =
@@ -213,14 +238,16 @@ public class CentralPortabilityWorker {
         now.plus(backoff),
         attempts,
         sanitized,
+        code.name(),
         now);
   }
 
-  private void failPermanent(ProcessingJob job, String error) {
+  private void failPermanent(ProcessingJob job, String error, IntegrationFailureCode code) {
     Instant now = clock.instant();
     String sanitized = sanitizeError(error);
-    finalizeOperationService.recordIntegrationFailure(job.operationId(), sanitized);
-    jobRepository.markExhausted(job.id(), job.fenceToken(), sanitized, now);
+    finalizeOperationService.recordIntegrationFailureWithFence(
+        job.operationId(), job.id(), job.fenceToken(), owner(job), sanitized);
+    jobRepository.markExhausted(job.id(), job.fenceToken(), sanitized, code.name(), now);
   }
 
   private static String owner(ProcessingJob job) {

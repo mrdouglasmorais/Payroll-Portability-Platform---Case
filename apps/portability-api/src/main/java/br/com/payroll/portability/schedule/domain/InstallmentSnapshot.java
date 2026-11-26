@@ -79,6 +79,23 @@ public final class InstallmentSnapshot {
     this.effectiveAccount = Objects.requireNonNull(confirmedDestination);
   }
 
+  /** Refresh agenda attributes for OPEN rows without touching the effective account. */
+  public InstallmentSnapshot withOpenRefresh(
+      String agreementId, Money amount, LocalDate discountDate) {
+    if (status != InstallmentStatus.OPEN) {
+      return this;
+    }
+    return new InstallmentSnapshot(
+        id,
+        externalInstallmentId,
+        beneficiaryId,
+        Objects.requireNonNull(agreementId),
+        Objects.requireNonNull(amount),
+        Objects.requireNonNull(discountDate),
+        status,
+        effectiveAccount);
+  }
+
   public UUID id() {
     return id;
   }

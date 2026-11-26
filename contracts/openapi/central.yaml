@@ -2,11 +2,28 @@ openapi: 3.1.0
 info:
   title: Central Simulator
   version: 0.1.0
-  description: Proposed contract. HMAC signature in headers rather than body for Central;
-    see SPEC-006. Error schemas and signing details to finalize before implementation.
+  description: |
+    Central simulator contract. Requests/responses are HMAC-signed.
+  license:
+    name: Proprietary
+    identifier: LicenseRef-Proprietary
+servers:
+  - url: http://localhost:8081
+    description: Local Central simulator
+security:
+  - HmacHeaders: []
+components:
+  securitySchemes:
+    HmacHeaders:
+      type: apiKey
+      in: header
+      name: X-Signature
+      description: HMAC-SHA256 over canonical string; companion headers X-Timestamp, X-Nonce, X-Key-Id, X-Correlation-Id
 paths:
   /autorizacoes:
     post:
+      summary: Create Central authorization
+      operationId: centralCreateAuthorization
       requestBody:
         required: true
         content:
@@ -120,6 +137,8 @@ paths:
         schema: *id001
   /beneficiarios/{beneficiarioId}/agenda:
     get:
+      summary: Fetch beneficiary installment agenda
+      operationId: centralGetAgenda
       parameters:
       - in: path
         name: beneficiarioId
@@ -223,6 +242,8 @@ paths:
               schema: *id001
   /operacoes-portabilidade:
     post:
+      summary: Accept portability protocol
+      operationId: centralCreatePortability
       requestBody:
         required: true
         content:
@@ -356,6 +377,8 @@ paths:
         schema: *id001
   /operacoes-portabilidade/{protocolo}:
     get:
+      summary: Poll portability protocol status
+      operationId: centralGetPortabilityStatus
       parameters:
       - in: path
         name: protocolo

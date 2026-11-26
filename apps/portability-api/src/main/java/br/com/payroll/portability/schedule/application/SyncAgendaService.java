@@ -64,14 +64,29 @@ public class SyncAgendaService {
       throw new DomainException("Central agenda failed: " + ex.getMessage());
     }
 
-    tx.executeWithoutResult(status -> persistSnapshots(beneficiaryId, remote));
-    return toResponse(remote);
+    List<CentralAgendaItem> authorized =
+        remote.stream()
+            .filter(
+                item ->
+                    consentRepository
+                        .findAccepted(beneficiaryId, item.convenioId())
+                        .isPresent())
+            .toList();
+
+    tx.executeWithoutResult(status -> persistSnapshots(beneficiaryId, authorized));
+    return toResponse(authorized);
   }
 
   private void persistSnapshots(UUID beneficiaryId, List<CentralAgendaItem> remote) {
     for (CentralAgendaItem item : remote) {
       var existing = installmentRepository.findByExternalId(item.parcelaId());
       if (existing.isPresent()) {
+        InstallmentSnapshot current = existing.get();
+        if (current.status() == InstallmentStatus.OPEN) {
+          installmentRepository.save(
+              current.withOpenRefresh(
+                  item.convenioId(), Money.of(item.valor()), item.dataDesconto()));
+        }
         continue;
       }
       installmentRepository.save(
