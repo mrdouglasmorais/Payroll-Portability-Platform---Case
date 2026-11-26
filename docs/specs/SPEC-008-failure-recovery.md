@@ -11,4 +11,5 @@ Bound retries with persisted next_run_at, backoff and jitter; honor Retry-After;
 Timeout, 503, malformed response, invalid signature and worker crash are distinguishable; reservations stay held for ambiguous outcome.
 
 ## Evidence
-M4: transient Central failure leaves `PENDENTE` and holds reservation (`CentralPortabilityWorkerTest.transientFailureDoesNotRejectBusiness`).
+M4: transient Central failure leaves `PENDENTE` and holds reservation (`CentralPortabilityWorkerTest.transientFailureDoesNotRejectBusiness`).  
+M7: lost acceptance response recovers same protocol on retry; restart resumes POLL without resubmit; Compose `tests/e2e/timeout-recovery.sh`.

@@ -19,6 +19,15 @@ chmod +x tests/e2e/dual-stack.sh
 ./tests/e2e/dual-stack.sh
 ```
 
+## Lost-response + restart recovery
+
+Simulates platform forgetting `central_protocol` after Central acceptance, verifies the same protocol is restored via idempotent resubmit, restarts `portability-api`, and expects `CONFIRMADA`.
+
+```bash
+chmod +x tests/e2e/timeout-recovery.sh
+./tests/e2e/timeout-recovery.sh
+```
+
 Optional env: `API_BASE`, `POLL_ATTEMPTS`, `POLL_SLEEP_SEC`.
 
 ## Playwright (operator UI)

@@ -192,6 +192,78 @@ class CentralPortabilityWorkerTest {
             || TechnicalJobStatus.EXHAUSTED.name().equals(jobStatus));
   }
 
+  @Test
+  void lostAcceptanceResponseRecoversSameProtocolOnRetry() {
+    FakeCentral.INSTANCE.mode = FakeCentral.Mode.LOST_FIRST_RESPONSE;
+    FakeCentral.INSTANCE.dropRemaining.set(1);
+    UUID operationId = createOp("idem-lost");
+
+    ProcessingJob first =
+        jobRepository.claimNext("test", clock.instant(), clock.instant().plusSeconds(30)).orElseThrow();
+    worker.processClaimed(first);
+
+    assertNull(operationRepository.findById(operationId).orElseThrow().centralProtocol());
+    assertEquals(BusinessStatus.PENDENTE, operationRepository.findById(operationId).orElseThrow().businessStatus());
+    String acceptedProtocol = FakeCentral.INSTANCE.protocol.get();
+    assertTrue(acceptedProtocol != null && !acceptedProtocol.isBlank());
+
+    Instant later = clock.instant().plusSeconds(5);
+    ProcessingJob retry =
+        jobRepository.claimNext("test", later, later.plusSeconds(30)).orElseThrow();
+    worker.processClaimed(retry);
+
+    assertEquals(
+        acceptedProtocol,
+        operationRepository.findById(operationId).orElseThrow().centralProtocol());
+    assertEquals(2, FakeCentral.INSTANCE.submits.get());
+
+    Instant pollAt = clock.instant().plusSeconds(10);
+    ProcessingJob poll =
+        jobRepository.claimNext("test", pollAt, pollAt.plusSeconds(30)).orElseThrow();
+    worker.processClaimed(poll);
+
+    assertEquals(
+        BusinessStatus.CONFIRMADA, operationRepository.findById(operationId).orElseThrow().businessStatus());
+  }
+
+  @Test
+  void restartResumesPollWithoutResubmitting() {
+    FakeCentral.INSTANCE.mode = FakeCentral.Mode.CONFIRM;
+    UUID operationId = createOp("idem-restart");
+
+    ProcessingJob submit =
+        jobRepository.claimNext("test", clock.instant(), clock.instant().plusSeconds(30)).orElseThrow();
+    worker.processClaimed(submit);
+    String protocol = operationRepository.findById(operationId).orElseThrow().centralProtocol();
+    assertTrue(protocol != null && !protocol.isBlank());
+    assertEquals(1, FakeCentral.INSTANCE.submits.get());
+
+    // Simulate process crash: lease expired, poll job still pending.
+    jdbc.update(
+        """
+        UPDATE processing_jobs
+        SET technical_status = 'PENDING',
+            lease_owner = NULL,
+            lease_until = NULL,
+            next_run_at = ?
+        WHERE operation_id = ?
+        """,
+        java.sql.Timestamp.from(clock.instant().minusSeconds(1)),
+        operationId);
+
+    Instant later = clock.instant().plusSeconds(5);
+    ProcessingJob poll =
+        jobRepository.claimNext("restart-worker", later, later.plusSeconds(30)).orElseThrow();
+    assertEquals(CentralPortabilityWorker.POLL, poll.jobType());
+    worker.processClaimed(poll);
+
+    assertEquals(
+        BusinessStatus.CONFIRMADA, operationRepository.findById(operationId).orElseThrow().businessStatus());
+    assertEquals(1, FakeCentral.INSTANCE.submits.get());
+    assertEquals(
+        protocol, operationRepository.findById(operationId).orElseThrow().centralProtocol());
+  }
+
   private UUID createOp(String idem) {
     return createService.create(
         new PortabilityCommand(
@@ -210,17 +282,23 @@ class CentralPortabilityWorkerTest {
     enum Mode {
       CONFIRM,
       REJECT,
-      UNAVAILABLE
+      UNAVAILABLE,
+      LOST_FIRST_RESPONSE
     }
 
     Mode mode = Mode.CONFIRM;
     final AtomicInteger submits = new AtomicInteger();
     final AtomicReference<String> protocol = new AtomicReference<>();
+    final java.util.concurrent.ConcurrentHashMap<String, String> byIdempotency =
+        new java.util.concurrent.ConcurrentHashMap<>();
+    final AtomicInteger dropRemaining = new AtomicInteger(0);
 
     void reset() {
       mode = Mode.CONFIRM;
       submits.set(0);
       protocol.set(null);
+      byIdempotency.clear();
+      dropRemaining.set(0);
     }
 
     @Override
@@ -241,14 +319,25 @@ class CentralPortabilityWorkerTest {
         throw new CentralException("simulated 503", true, 503);
       }
       submits.incrementAndGet();
+      String existing = byIdempotency.get(idempotencyKey);
+      if (existing != null) {
+        protocol.set(existing);
+        return existing;
+      }
       String p = "prot-" + UUID.randomUUID();
+      byIdempotency.put(idempotencyKey, p);
       protocol.set(p);
+      if (mode == Mode.LOST_FIRST_RESPONSE && dropRemaining.get() > 0) {
+        dropRemaining.decrementAndGet();
+        // First acceptance is durable at Central, but response is lost in transit.
+        throw new CentralException("simulated lost response after accept", true, 0);
+      }
       return p;
     }
 
     @Override
     public CentralStatus pollStatus(String protocol, String correlationId) {
-      if (mode == Mode.CONFIRM) {
+      if (mode == Mode.CONFIRM || mode == Mode.LOST_FIRST_RESPONSE) {
         return CentralStatus.terminal("CONFIRMADA", null);
       }
       if (mode == Mode.REJECT) {

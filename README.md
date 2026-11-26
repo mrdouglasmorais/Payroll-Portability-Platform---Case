@@ -16,6 +16,7 @@ Board Miro (fonte das decisões de arquitetura): https://miro.com/app/board/uXjV
 - **M4** Portability core (HTTP API, Central HMAC client, persistent worker)
 - **M5** Web console (operator flow, TanStack Query, accessible timeline)
 - **M6** Quality hardening (dual-stack E2E, Playwright, k6 lab smoke, acceptance mapping)
+- **M7** Failure recovery (lost-response protocol restore + worker restart resume)
 
 ## Quick start (M1)
 
@@ -54,6 +55,7 @@ cd apps/web && pnpm install && pnpm test && pnpm build
 
 # Dual-stack E2E (Compose must be healthy)
 ./tests/e2e/dual-stack.sh
+./tests/e2e/timeout-recovery.sh
 
 # Playwright UI (optional)
 cd tests/e2e && pnpm install && pnpm exec playwright install chromium && pnpm test
