@@ -270,3 +270,32 @@ paths:
           description: Not found
         '503':
           description: Unavailable
+
+components:
+  schemas:
+    ProblemDetail:
+      type: object
+      description: RFC 9457 problem details (Spring ProblemDetail)
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        error:
+          type: string
+          description: Alias of detail for older clients
+        reason:
+          type: string
+          description: Typed installment conflict reason when applicable
+        parcelaId:
+          type: string
+      required:
+        - title
+        - status
+        - detail
+      additionalProperties: true
