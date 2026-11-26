@@ -15,6 +15,10 @@ Consequência: dois JSONs semanticamente iguais com espaços/ordem de chaves dif
 
 **Política explícita do laboratório:** reenvios usam o mesmo corpo **byte a byte** (o worker da plataforma serializa de forma estável via `LinkedHashMap` + Jackson). Produção deveria migrar o fingerprint da Central para um hash canônico de campos, separado do HMAC.
 
+### Mitigação da janela crítica (Central aceitou, protocolo local ausente)
+
+Se o worker morrer após o `202` da Central e antes de persistir `central_protocol`, o reenvio com a **mesma** `Idempotency-Key` e o mesmo corpo deve devolver o protocolo original. Isso evita duplicar efeito financeiro. Evidência aproximada: `timeout-recovery.sh`. Não gerar nova chave para “destravar”.
+
 ## HMAC em respostas de erro
 
 - Se a resposta de erro trouxer `X-Signature` (+ headers), a plataforma **verifica** a assinatura.

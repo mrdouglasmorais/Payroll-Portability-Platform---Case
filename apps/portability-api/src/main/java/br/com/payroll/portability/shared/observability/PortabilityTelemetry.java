@@ -6,10 +6,17 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
 import jakarta.annotation.PostConstruct;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * Low-cardinality metrics for portability operations and jobs. Never labels with
  * beneficiary/operation IDs.
+ *
+ * <p>Financial outcome counters ({@code created}/{@code confirmed}/{@code rejected}) are scheduled
+ * with {@code afterCommit} so a rolled-back transaction does not inflate the count. These metrics
+ * are operational signals only — not an authoritative accounting source. The database and append-only
+ * audit trail remain the source of financial truth.
  */
 @Component
 public class PortabilityTelemetry {
@@ -35,17 +42,17 @@ public class PortabilityTelemetry {
   void bind() {
     operationsCreated =
         Counter.builder("portability_operations_total")
-            .description("Portability operations created")
+            .description("Portability operations created (after successful commit)")
             .tag("outcome", "created")
             .register(registry);
     operationsConfirmed =
         Counter.builder("portability_operations_total")
-            .description("Portability operations finalized")
+            .description("Portability operations finalized (after successful commit)")
             .tag("outcome", "confirmed")
             .register(registry);
     operationsRejected =
         Counter.builder("portability_operations_total")
-            .description("Portability operations finalized")
+            .description("Portability operations finalized (after successful commit)")
             .tag("outcome", "rejected")
             .register(registry);
     jobsClaimed =
@@ -82,15 +89,15 @@ public class PortabilityTelemetry {
   }
 
   public void operationCreated() {
-    operationsCreated.increment();
+    afterCommit(operationsCreated::increment);
   }
 
   public void operationConfirmed() {
-    operationsConfirmed.increment();
+    afterCommit(operationsConfirmed::increment);
   }
 
   public void operationRejected() {
-    operationsRejected.increment();
+    afterCommit(operationsRejected::increment);
   }
 
   public void jobClaimed() {
@@ -111,5 +118,23 @@ public class PortabilityTelemetry {
 
   public void centralPermanentFailure() {
     centralPermanent.increment();
+  }
+
+  /**
+   * Runs {@code action} after a successful commit when a Spring transaction synchronization is
+   * active; otherwise runs immediately (non-transactional call sites).
+   */
+  void afterCommit(Runnable action) {
+    if (TransactionSynchronizationManager.isSynchronizationActive()) {
+      TransactionSynchronizationManager.registerSynchronization(
+          new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+              action.run();
+            }
+          });
+      return;
+    }
+    action.run();
   }
 }

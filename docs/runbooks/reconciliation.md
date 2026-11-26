@@ -16,8 +16,13 @@ Quando `processing.status = REQUIRES_REVIEW` e o status de negócio permanece `P
 
 1. Correlacionar `correlationId` nos logs da API e da Central.
 2. Se houver `centralProtocol`, consultar a Central (HMAC) sem reenviar a operação.
-3. Se a Central estiver `CONFIRMADA`/`REJEITADA`, o caminho seguro é um job/poll que reaplique o resultado **uma vez** sob fencing — hoje isso ocorre ao rearmar o job com lease válido, não via endpoint admin.
-4. Se a Central permanecer `PENDENTE`, aguardar ou escalar.
+3. Se **não** houver `centralProtocol` mas a intenção já foi enviada (job `SUBMIT_CENTRAL` / falha após HTTP), reenviar **somente** com a mesma `Idempotency-Key` e o mesmo corpo — a Central devolve o protocolo original (fingerprint). Nunca gerar nova chave para “destravar”.
+4. Se a Central estiver `CONFIRMADA`/`REJEITADA`, o caminho seguro é um job/poll que reaplique o resultado **uma vez** sob fencing — hoje isso ocorre ao rearmar o job com lease válido, não via endpoint admin.
+5. Se a Central permanecer `PENDENTE`, aguardar ou escalar.
+
+## Lab reset vs reconciliação
+
+`lab-reset-demo-parcels.sh` and `docker compose down -v` are **disposable-lab only**. They are not recovery for persistent financial environments. Flyway `V8` historically reopened demo parcels on migrate; `V9` is a no-op policy marker and **does not undo** V8 effects on databases that already applied V8.
 
 ## Intervenção humana permitida
 - Inspecionar evidências (`correlationId`, protocolo, timeline, logs).

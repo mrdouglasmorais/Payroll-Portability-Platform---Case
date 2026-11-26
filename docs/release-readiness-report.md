@@ -6,12 +6,12 @@ Engineering status. Quality should be judged from code, tests and recorded comma
 
 | Field | Value |
 |---|---|
-| Published tip (pre-M10 push) | `3c82d9be38e19aa8f7a7f72dc71b0bec844b96df` |
-| Working tree | M10+finding closure (observability, a11y, HTTP concurrency, process-kill, lab-reset policy) — publish next |
-| Milestone | M10 |
-| Local gates | Maven / web / Compose / dual-stack / timeout-recovery / process-kill / Playwright+axe PASS (this session) |
-| CI on `3c82d9` | **failure** — Playwright strict-mode locator (`getByText(/Operação/)`) — fixed in working tree |
-| Acceptance | DONE (local); re-confirm Actions after next push |
+| Published tip (CI green) | `bf0c76773fc609c97b3977fc8415defa9cd587d9` |
+| Remote CI | [SUCCESS 8/8](https://github.com/mrdouglasmorais/Payroll-Portability-Platform---Case/actions/runs/45738641426) on `bf0c767` |
+| Working tree | AI-014 final release hardening (docs + afterCommit metrics + a11y expansion) — **unpublished**; no CI claim until next green Actions |
+| Milestone | M10 + AI-014 hardening |
+| Local gates | PASS — Maven 40+9, Vitest 9, dual-stack, timeout-recovery, process-kill, Playwright 3 (AI-014) |
+| Acceptance | DONE on `bf0c767` + local AI-014 residuals closed/documented |
 | Human review | Performed for financial/release findings (candidate-owned) |
 
 ## 2. Compliance matrix
@@ -25,39 +25,50 @@ See [compliance-matrix.md](compliance-matrix.md).
 | E | P0 | Multi-parcel lock order | Closed |
 | C-test | P1 | Agenda sync OPEN-only | Closed |
 | Idemp service | P1 | Concurrent same-key (service) | Closed |
-| Idemp HTTP | P1 | Concurrent same-key over HTTP/MockMvc | Closed (`concurrentHttpSameIdempotencyKeyReturnsSingleOperation`) |
-| Process kill | P1 | Hard interrupt after Central accept | Closed (`tests/e2e/process-kill-recovery.sh`) |
-| V8 / lab-reset | P1 | Partial PORTED reopen as recovery | Closed — script refuses; clean lab = `compose down -v` |
-| A11y | P2 | axe / keyboard / viewport | Closed — Playwright + `@axe-core/playwright` |
-| Score exposure | P2 | Internal numeric self-score in public report | Closed (history rewritten earlier) |
-| Report stale CI | P2 | Report claimed unpublished / CI unknown | Closed — this document |
-| CI Playwright | P1 | Locator strict-mode on `3c82d9` | Fixed in working tree (pending push) |
+| Idemp HTTP | P1 | Concurrent same-key over HTTP/MockMvc | Closed |
+| Process kill (post-persist) | P1 | Hard interrupt after local protocol | Closed (`process-kill-recovery.sh`) |
+| Process kill (pre-persist window) | P1 | Central accept before local protocol | **Accepted residual** — documented; mitigated by idempotency + timeout-recovery + runbook; no production test hooks |
+| V8 / lab-reset | P1 | Partial PORTED reopen as recovery | Script refuses; V8 remains historical on clean migrate; V9 ≠ undo; disposable volumes only |
+| Metrics pre-commit | P2 | Counters inside TX | Closed — `afterCommit` + commit/rollback IT |
+| A11y scope | P2 | First-step only | Closed as **smoke** across steps (desktop+mobile); not WCAG certification |
+| Docs drift (RNF08/CI/axe) | P2 | Stale matrix/README/report | Closed in AI-014 docs pass |
+| Score exposure | P2 | Internal numeric self-score | Closed earlier |
 
-## 4. Tests (latest local evidence)
+## 4. Tests
+
+### Remote (published SHA)
+
+| Gate | Result |
+|---|---|
+| GitHub Actions `bf0c767` | SUCCESS 8/8 — [run 45738641426](https://github.com/mrdouglasmorais/Payroll-Portability-Platform---Case/actions/runs/45738641426) |
+
+### Local (AI-014 working tree — actual)
 
 | Command | Result |
 |---|---|
-| `portability-api ./mvnw -B clean verify` | 37+ tests (includes HTTP concurrency) — re-run in this pass |
-| `central-simulator ./mvnw -B clean verify` | 9 — SUCCESS (prior M10) |
-| `apps/web pnpm test` | 9 — PASS |
+| `portability-api ./mvnw -B clean verify` | Tests run: 40 — BUILD SUCCESS |
+| `central-simulator ./mvnw -B clean verify` | Tests run: 9 — BUILD SUCCESS |
+| `apps/web pnpm test` | 9 passed |
 | `dual-stack.sh` | `DUAL_STACK_E2E_PASS` |
 | `timeout-recovery.sh` | `TIMEOUT_RECOVERY_E2E_PASS` |
-| `process-kill-recovery.sh` | run in this pass |
-| Playwright + axe | run in this pass |
-| Actions `3c82d9` | failure (Playwright); link: https://github.com/mrdouglasmorais/Payroll-Portability-Platform---Case/actions/runs/45737102271 |
+| `process-kill-recovery.sh` | `PROCESS_KILL_RECOVERY_E2E_PASS` |
+| Playwright a11y+flow | 3 passed |
+| Session detail | `ai/sessions/AI-014-final-release-hardening.md` |
 
 ## 5. Security / observability
 
 - HMAC + headers + CORS + input bounds
-- Prometheus low-cardinality metrics + correlation MDC
+- Prometheus low-cardinality metrics (financial counters after commit) + correlation MDC
+- Metrics are operational only — DB + audit trail are authoritative
 - Lab: no operator SSO
 
-## 6. Residual risks
+## 6. Residual risks (accepted)
 
-- Confirm green Actions on the next published SHA after Playwright locator + a11y land
-- V8 remains in Flyway history on clean migrate (documented; not silently rewritten)
-- OTel collectors / production auth remain out of scope
+- Critical window Central-accept → local protocol persist not deterministically killed in CI
+- `V8` demo reopen remains executable on **clean** Central Flyway history; unsafe framing for persistent financial upgrades; prefer exclusive seeds + `compose down -v` for disposable labs
+- Operator auth, soak, production secret management out of scope
+- CI green for AI-014 changes only after human push + Actions
 
 ## 7. Git
 
-Publish the current working tree as the delivery tip; keep author identity candidate-only (avoid Cursor co-author trailers).
+Do not commit/push without human authorization. Keep author identity candidate-only.

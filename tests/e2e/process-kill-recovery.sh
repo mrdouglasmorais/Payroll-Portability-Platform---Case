@@ -1,7 +1,17 @@
 #!/usr/bin/env bash
-# Real process interruption: SIGKILL portability-api after Central acceptance
-# (central_protocol persisted), then restart and expect CONFIRMADA without
-# duplicate operations. Distinct from graceful `restart` in timeout-recovery.sh.
+# Real process interruption: SIGKILL portability-api AFTER Central acceptance
+# AND after local central_protocol persistence, then restart and expect
+# CONFIRMADA without duplicate operations.
+#
+# Coverage boundary (explicit):
+#   - Covers: hard process death after protocol is durable locally.
+#   - Does NOT cover: the critical window where Central accepted but the
+#     platform died before attachProtocol/persist. That race is not exercised
+#     deterministically here (no production test hooks). Mitigation is
+#     documented: same Idempotency-Key replay + Central fingerprint returns
+#     the original protocol; timeout-recovery.sh simulates lost local protocol
+#     and verifies recovery; reconciliation runbook covers operator path.
+# Distinct from graceful restart in timeout-recovery.sh.
 set -euo pipefail
 
 API_BASE="${API_BASE:-http://localhost:8080}"

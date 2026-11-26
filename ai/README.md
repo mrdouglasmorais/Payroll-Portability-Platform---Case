@@ -23,5 +23,6 @@ Use `sessions/TEMPLATE.md` for actual prompts and evidence.
 | AI-011 | Operator UI pt-BR |
 | AI-012 | Release readiness audit |
 | AI-013 | Observability hardening + manual validation DONE |
+| AI-014 | Final release hardening (docs, afterCommit metrics, a11y smoke) |
 
-Never publish secrets or real beneficiary data. Human owns final decisions. Independent review is a separate pass, not proof of correctness.
+Never publish secrets or real beneficiary data. Human owns final decisions. Independent review is a separate pass, not proof of correctness. Historical session files are preserved as written.

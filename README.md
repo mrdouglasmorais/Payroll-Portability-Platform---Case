@@ -31,7 +31,7 @@ Modular monolith (`portability-api`) + independent Central simulator + React ope
 | Data | PostgreSQL 17 (platform + central) |
 | Contracts | OpenAPI 3.1 + Redocly |
 | Integrity | HMAC-SHA256 canonical messages |
-| Tests | JUnit, Testcontainers, ArchUnit, Vitest, Playwright, k6 (lab) |
+| Tests | JUnit, Testcontainers, ArchUnit, Vitest, Playwright (+ axe smoke), k6 (lab) |
 | Delivery | Docker Compose, GitHub Actions (CodeQL, Gitleaks, Trivy) |
 
 ## Prerequisites
@@ -59,7 +59,7 @@ Wait until healthy, then open the console.
 | Central simulator health | http://localhost:8081/actuator/health |
 | Central metrics (Prometheus) | http://localhost:8081/actuator/prometheus |
 
-Stop: `docker compose down`. Reset volumes (clean demo): `docker compose down -v`.
+Stop: `docker compose down`. Reset disposable lab volumes: `docker compose down -v`.
 
 ## Demo data (synthetic)
 
@@ -70,14 +70,20 @@ Stop: `docker compose down`. Reset volumes (clean demo): `docker compose down -v
 | `ben-recover` | Lost-response / restart harness |
 | `*-reject`, `*-503`, `*-timeout` suffixes | Central fault modes |
 
-UI defaults to `ben-ui` / `conv-1`. After a confirmed demo, **do not partially reopen PORTED parcels**. Recreate disposable volumes:
+UI defaults to `ben-ui` / `conv-1`. After a confirmed demo, **do not partially reopen PORTED parcels**. For disposable labs only, recreate volumes:
 
 ```bash
 docker compose down -v
 docker compose up --build -d
 ```
 
-`scripts/lab-reset-demo-parcels.sh` refuses financial reopen and points to the volume recreate path. Central Flyway `V8` historically reopened demo parcels on migrate; `V9` documents that hazard. Prefer exclusive synthetic beneficiaries per run.
+`scripts/lab-reset-demo-parcels.sh` refuses financial reopen and points to the volume recreate path. That path is **not** safe for persistent financial environments.
+
+### Flyway V8 / V9 (Central)
+
+- `V8__reopen_ui_demo_parcels.sql` historically reopened demo parcels and cleared active reservations on migrate. It remains in Flyway history and **still executes on clean installs** that have not applied it yet.
+- `V9__lab_reset_policy.sql` is a **no-op marker** documenting the hazard. It does **not** undo V8 effects on databases that already ran V8.
+- Prefer exclusive synthetic beneficiaries per run over mutating shared financial history.
 
 ## How to demonstrate
 
@@ -117,7 +123,7 @@ cd apps/web && pnpm install && pnpm test && pnpm build && cd ../..
 npx --yes @redocly/cli@1.34.5 lint --config redocly.yaml \
   contracts/openapi/platform.yaml contracts/openapi/central.yaml
 
-# Compose must be healthy
+# Compose must be healthy (prefer clean volumes for Playwright parcel budget)
 ./tests/e2e/dual-stack.sh
 ./tests/e2e/timeout-recovery.sh
 ./tests/e2e/process-kill-recovery.sh
@@ -128,6 +134,15 @@ cd tests/e2e && pnpm install && pnpm exec playwright install chromium && pnpm te
 docker run --rm -i --network host -e API_BASE=http://localhost:8080 \
   grafana/k6:0.54.0 run - < tests/performance/k6-m6-portability.js
 ```
+
+### Recovery harnesses (coverage boundary)
+
+| Script | Covers | Does not cover |
+| --- | --- | --- |
+| `timeout-recovery.sh` | Lost local protocol after Central accept; same key restores protocol; restart → terminal | Exact process death mid-HTTP |
+| `process-kill-recovery.sh` | SIGKILL **after** local `central_protocol` persist → recover without duplicate ops | Critical window: Central accepted, local protocol **not** yet durable |
+
+Mitigation for the pre-persist window: reuse the same `Idempotency-Key` (Central returns the original protocol) + [reconciliation runbook](docs/runbooks/reconciliation.md). Deterministic kill in that window would require production test hooks — out of scope.
 
 ## How the Central works
 
@@ -145,35 +160,41 @@ Independent Spring Boot service with its own database. Implements the suggested 
 | React + TypeScript | Typed operator UI |
 | TanStack Query | Server state, polling that stops on terminal status |
 | Vite + pnpm | Fast reproducible frontend toolchain |
-| Playwright | Operator E2E against Compose |
+| Playwright + `@axe-core/playwright` | Operator E2E + accessibility smoke (not WCAG certification) |
 | Redocly | OpenAPI lint gate |
 | k6 | Optional lab smoke under contention |
 
 ## Architectural decisions
 
-See `docs/adr/` (modular monolith, dual DB, persistent jobs, HMAC, reservations, polling, AI harness). Trade-off detail: [idempotency-and-integrity](docs/architecture/idempotency-and-integrity.md), [worker-lease](docs/architecture/worker-lease.md), [reconciliation runbook](docs/runbooks/reconciliation.md).
+See `docs/adr/` (modular monolith, dual DB, persistent jobs, HMAC, reservations, polling, AI harness). Trade-off detail: [idempotency-and-integrity](docs/architecture/idempotency-and-integrity.md), [worker-lease](docs/architecture/worker-lease.md), [reconciliation runbook](docs/runbooks/reconciliation.md), [observability](docs/architecture/observability.md).
 
 ## Trade-offs
 
 - DB-backed jobs avoid broker ops cost; polling matches Central contract; fencing + leases handle crashed workers.
 - Central fingerprint is raw-body; platform fingerprint is semantic field hash — documented intentionally.
 - No operator authentication in lab; HMAC protects service-to-service messages, not end-user identity.
+- Prometheus financial counters emit after commit and are **operational only** — not authoritative accounting (DB + audit trail are).
 - Future: production auth, key rotation, retention, richer reconciliation CLI, load capacity studies (not claimed here).
 
 ## AI harness
 
-Expected by the challenge. Skills live in `.agents/skills/`; sessions in `ai/sessions/` (`AI-000` … `AI-012`). Humans own commits and financial invariant approval. Do not treat AI session narrative as proof without command evidence.
+Expected by the challenge. Skills live in `.agents/skills/`; sessions in `ai/sessions/` (`AI-000` … `AI-014`). Human review of financial/release findings performed (candidate-owned). Humans own commits. Do not treat AI session narrative as proof without command evidence.
+
+## Evidence (published tip)
+
+| Kind | Value |
+| --- | --- |
+| SHA | `bf0c76773fc609c97b3977fc8415defa9cd587d9` |
+| Remote CI | [SUCCESS 8/8](https://github.com/mrdouglasmorais/Payroll-Portability-Platform---Case/actions/runs/45738641426) |
+| Local follow-ups | See `ai/sessions/AI-014-final-release-hardening.md` — do not claim CI for unpublished commits |
 
 ## Known limitations
 
 - Lab-only: no real banks, no operator SSO, synthetic beneficiaries.
-- `V8` demo reopen remains in history for clean installs; use lab-reset / volume wipe thereafter.
-- Playwright/k6 process-kill chaos are release gates evolving with CI.
-- Human review of financial sessions may still be pending in session metadata.
-
-## What we would do with more time
-
-Operator auth, admin reconciliation tooling, axe-in-CI, soak tests, retention/PII policies, and production-grade secret management.
+- `V8` demo reopen remains in Flyway history on clean Central installs; `V9` does not undo it; disposable volume wipe only.
+- `process-kill-recovery.sh` covers post-persist SIGKILL only; pre-persist critical window is a documented residual.
+- Accessibility checks are automated smoke (axe wcag2a/aa + keyboard) across wizard steps — **not** full WCAG 2.2 AA certification.
+- Operator auth, soak tests, retention/PII policies, and production-grade secret management remain future work.
 
 ## Milestones
 
@@ -182,3 +203,4 @@ Operator auth, admin reconciliation tooling, axe-in-CI, soak tests, retention/PI
 - **AI-011**: operator UI pt-BR
 - **AI-012**: release readiness / lock order / CI & docs
 - **M10 / AI-013**: observability metrics, request hardening, manual validation DONE
+- **AI-014**: final release hardening (docs honesty, afterCommit metrics, a11y smoke expansion)

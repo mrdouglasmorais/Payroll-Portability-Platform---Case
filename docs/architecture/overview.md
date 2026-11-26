@@ -28,12 +28,21 @@ sequenceDiagram
   A-->>W: 202 + operation ID
   J->>C: Signed POST with stable external key
   C-->>J: 202 + protocol
-  J->>D: Persist protocol
+  Note over J,D: Critical window — Central accepted; local protocol not yet durable
+  J->>D: Persist protocol (attachProtocol)
   J->>C: Signed GET status
   C-->>J: Pending / terminal
   J->>D: Verified final state + account update (if confirmed) + audit
   W->>A: GET operation
 ```
+
+### Process interruption coverage
+
+| Scenario | Evidence | What it proves |
+|---|---|---|
+| SIGKILL after local `central_protocol` persist | `tests/e2e/process-kill-recovery.sh` | Process death after durable accept recovers to `CONFIRMADA` without duplicate ops |
+| Lost local protocol after Central accept (logical) | `tests/e2e/timeout-recovery.sh` | Same idempotency key restores original protocol; restart reaches terminal |
+| Crash between Central 202 and local persist | Not deterministically automated | Residual: mitigated by Central idempotent replay + reconciliation runbook; no production test hooks |
 
 Business states: PENDENTE → CONFIRMADA or REJEITADA; technical job status independent. A timeout is not rejection. On rejection release reservation; on confirmation mark installment ported; ambiguous outcomes retain reservation for reconciliation. Central owns authoritative receiving-account change; platform mirrors confirmed outcome. Proposed all-or-nothing operation semantics must be documented and tested.
 

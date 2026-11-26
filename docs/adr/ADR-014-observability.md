@@ -12,7 +12,7 @@ Actuator health + Micrometer Prometheus registry + MDC correlation IDs + low-car
 Ship OpenTelemetry + Grafana stack in Compose from day one.
 
 ## Consequences
-Useful local diagnosis (`/actuator/prometheus`); no high-cardinality labels; tracing deferred.
+Useful local diagnosis (`/actuator/prometheus`); no high-cardinality labels; tracing deferred. Financial outcome counters use `afterCommit` so rollbacks do not inflate totals; metrics remain operational — not authoritative accounting.
 
 ## Revisit
 Add tracing exporters when multi-service latency diagnosis requires it.
