@@ -33,12 +33,19 @@ Author lab notes: Douglas Morais. Stack: ECS JSON logs (stdout) + OpenTelemetry 
 | `central.submit.accepted` | INFO | Central 202 + protocol |
 | `central.poll.pending` | INFO | Still PENDENTE |
 | `central.call.failed` | WARN | Transient/permanent Central error (`errorCode`, `attempt`) |
+| `central.agenda.forbidden` | WARN | Central refused agenda (often missing ACCEPTED authorization / dual-DB desync) |
 | `portability.confirmed` | INFO | Terminal confirm (masked account) |
 | `portability.rejected` | INFO | Terminal reject |
 | `job.fence.stale` | WARN | Fence lost |
 | `job.exhausted` | ERROR | REQUIRES_REVIEW |
 
+Central simulator (stdout ECS): `central.authorization.accepted`, `central.agenda.forbidden`.
+
+Under k6 contention, `reservation.conflict` WARN volume is expected — filter with  
+`rg '"event"' \| rg -v reservation.conflict` when hunting rarer failures.
+
 Fields: `event`, `operationId`, `jobId`, `correlationId`, `attempt`, `fenceToken`, `jobType`, `protocol`, `errorCode`, `receivingBank`, `receivingAgencyMasked`, `receivingAccountMasked`.  
+`correlationId` / `traceId` já vêm do MDC no ECS — **não** repetir via `addKeyValue` (quebra o appender com `Duplicate nested pairs`).  
 Never log: HMAC secret/signature, raw bodies, full agency/account, real PII.
 
 ## Metrics (API)

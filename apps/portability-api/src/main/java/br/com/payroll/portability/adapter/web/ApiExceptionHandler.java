@@ -61,6 +61,10 @@ public class ApiExceptionHandler {
     } else if (ex.statusCode() == 409) {
       status = HttpStatus.CONFLICT;
     }
+    log.atWarn()
+        .addKeyValue(LogFields.EVENT, LogEvents.CENTRAL_CALL_FAILED)
+        .addKeyValue(LogFields.ERROR_CODE, ex.failureCode().name())
+        .log("Central integration failure mapped to HTTP {}", status.value());
     return problem(status, "Falha na integração com a Central", ex.getMessage());
   }
 

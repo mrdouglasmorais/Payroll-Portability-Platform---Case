@@ -21,5 +21,16 @@ Se um volume lab antigo aplicou uma versão anterior de `V11` (com DELETE) e o F
 ## Reset
 
 - Preferir beneficiários exclusivos por corrida (`ben-ui`, `ben-recover`).
-- Reset estrutural de demo: `scripts/lab-reset-demo-parcels.sh` (explícito).
+- Reset estrutural de demo: `scripts/lab-reset-demo-parcels.sh` (explícito — hoje recusa reopen financeiro).
 - Volumes: `docker compose down -v` (lab apenas).
+
+## Dual-DB (platform vs Central)
+
+`authorizations` na Central **não** são seed Flyway — nascem em runtime via `POST /autorizacoes`.  
+Se só o volume `central-db` for recriado, consents `ACCEPTED` no platform ficam órfãos → agenda **403**.
+
+Heal (lab):
+
+1. `POST /api/v1/autorizacoes` de novo (a API reafirma na Central mesmo com consent local), ou
+2. `./scripts/lab-sync-central-authorizations.sh`, ou
+3. `docker compose down -v && docker compose up --build -d`

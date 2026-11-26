@@ -149,7 +149,9 @@ Não reabra parcelas PORTED “na mão” em volume persistente (política V9).
 |---|---|---|
 | Breakpoint na **Central** nunca dispara | Central não está em Debug | `lsof -nP -iTCP:8081 -sTCP:LISTEN` e http://localhost:8081/actuator/health |
 | API responde `503` / “Falha de transporte com a Central” | Só a API está up | Suba **central-simulator [Debug]** antes do k6 |
-| k6 falha de conexão | API down ou porta errada | http://localhost:8080/actuator/health |
+| k6 falha de conexão | API down ou porta errada | http://localhost:8080/actuator/health — se usou Docker k6, `API_BASE` deve ser `http://host.docker.internal:8080` |
+| agenda `403` / authorize `201` | Central sem `authorizations` (volume recriado) | Repita `POST /autorizacoes` (API reafirma na Central) ou `./scripts/lab-sync-central-authorizations.sh` |
+| create quase só `409` após ~20 ops | Onda única `parcela-load-01..20` esgotada | Esperado no M6; nova onda exige parcels novos ou `docker compose down -v` |
 | Prometheus target down | App não escuta ainda | Status → Targets; scrape usa `host.docker.internal` |
 
 Ordem obrigatória: **Central Debug → API Debug → k6**.

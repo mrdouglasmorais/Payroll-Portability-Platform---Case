@@ -9,11 +9,15 @@ import br.com.payroll.portability.schedule.domain.InstallmentSnapshot;
 import br.com.payroll.portability.schedule.domain.InstallmentStatus;
 import br.com.payroll.portability.shared.domain.DomainException;
 import br.com.payroll.portability.shared.domain.Money;
+import br.com.payroll.portability.shared.observability.LogEvents;
+import br.com.payroll.portability.shared.observability.LogFields;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -21,6 +25,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class SyncAgendaService {
+
+  private static final Logger log = LoggerFactory.getLogger(SyncAgendaService.class);
 
   private final BeneficiaryRepository beneficiaryRepository;
   private final ConsentRepository consentRepository;
@@ -59,6 +65,11 @@ public class SyncAgendaService {
       remote = centralGateway.fetchAgenda(beneficiaryExternalRef, correlationId);
     } catch (CentralException ex) {
       if (ex.statusCode() == 403) {
+        // correlationId is already in MDC — do not addKeyValue it (ECS duplicate key).
+        log.atWarn()
+            .addKeyValue(LogFields.EVENT, LogEvents.CENTRAL_AGENDA_FORBIDDEN)
+            .addKeyValue(LogFields.ERROR_CODE, ex.failureCode().name())
+            .log("Central forbade agenda (missing authorization?)");
         throw new ResponseStatusException(
             HttpStatus.FORBIDDEN, "Agenda da Central proibida");
       }

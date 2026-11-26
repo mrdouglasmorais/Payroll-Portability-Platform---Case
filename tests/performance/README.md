@@ -41,7 +41,9 @@ docker run --rm -i \
 | --- | --- |
 | authorize / create / status trends | Lab latency under contention |
 | empty agenda mid-run | Expected when OPEN parcels are exhausted |
-| Grafana dashboard | http://127.0.0.1:3000 |
+| create mostly `409` after ~20 ops | Expected: `parcela-load-01..20` is a **single wave**; M6 does not reseed. For another confirm wave use unused parcel IDs or `docker compose down -v` |
+| agenda `403` while authorize `201` | Dual-DB desync — run authorize again (API re-asserts Central) or `./scripts/lab-sync-central-authorizations.sh` |
+| Grafana dashboard | http://127.0.0.1:3000 (LGTM `*_milliseconds`; host Prometheus scrape uses `*_seconds`) |
 
 ## M1 — bootstrap health/status only
 

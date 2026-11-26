@@ -46,19 +46,14 @@ public class RequestAuthorizationService {
 
     var existing = consentRepository.findAccepted(beneficiaryId, agreementId);
     if (existing.isPresent()) {
+      // Always re-assert on Central: local ACCEPTED consent can outlive Central
+      // authorizations after a lab volume recreate (dual-DB desync → agenda 403).
+      ensureCentralAuthorization(beneficiaryExternalRef, agreementId, correlationId);
       return existing.get().authorizationId();
     }
 
-    String authorizationId;
-    try {
-      authorizationId =
-          centralGateway.createAuthorization(beneficiaryExternalRef, agreementId, correlationId);
-    } catch (CentralException ex) {
-      if (ex.isTransientFailure()) {
-        throw ex;
-      }
-      throw new DomainException("Central rejeitou a autorização: " + ex.getMessage());
-    }
+    String authorizationId =
+        ensureCentralAuthorization(beneficiaryExternalRef, agreementId, correlationId);
 
     tx.executeWithoutResult(
         status -> {
@@ -71,5 +66,18 @@ public class RequestAuthorizationService {
           consentRepository.save(consent);
         });
     return authorizationId;
+  }
+
+  private String ensureCentralAuthorization(
+      String beneficiaryExternalRef, String agreementId, String correlationId) {
+    try {
+      return centralGateway.createAuthorization(
+          beneficiaryExternalRef, agreementId, correlationId);
+    } catch (CentralException ex) {
+      if (ex.isTransientFailure()) {
+        throw ex;
+      }
+      throw new DomainException("Central rejeitou a autorização: " + ex.getMessage());
+    }
   }
 }

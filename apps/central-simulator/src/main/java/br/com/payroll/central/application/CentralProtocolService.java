@@ -18,6 +18,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -29,6 +31,8 @@ import org.springframework.web.server.ResponseStatusException;
 public class CentralProtocolService {
 
   public static final String PORTABILITY_SCOPE = "central-portability";
+
+  private static final Logger log = LoggerFactory.getLogger(CentralProtocolService.class);
 
   private final JdbcTemplate jdbc;
   private final ObjectMapper objectMapper;
@@ -65,6 +69,11 @@ public class CentralProtocolService {
             .findFirst()
             .orElse(null);
     if (existing != null) {
+      log.atInfo()
+          .addKeyValue("event", "central.authorization.accepted")
+          .addKeyValue("beneficiarioId", beneficiaryId)
+          .addKeyValue("convenioId", agreementId)
+          .log("Authorization replay");
       return Map.of("autorizacaoId", existing);
     }
 
@@ -91,6 +100,11 @@ public class CentralProtocolService {
             String.class,
             beneficiaryId,
             agreementId);
+    log.atInfo()
+        .addKeyValue("event", "central.authorization.accepted")
+        .addKeyValue("beneficiarioId", beneficiaryId)
+        .addKeyValue("convenioId", agreementId)
+        .log("Authorization accepted");
     return Map.of("autorizacaoId", persisted);
   }
 
@@ -104,6 +118,10 @@ public class CentralProtocolService {
             Integer.class,
             beneficiaryId);
     if (authCount == null || authCount == 0) {
+      log.atWarn()
+          .addKeyValue("event", "central.agenda.forbidden")
+          .addKeyValue("beneficiarioId", beneficiaryId)
+          .log("Agenda refused — no accepted authorization");
       throw new ResponseStatusException(HttpStatus.FORBIDDEN, "No accepted authorization");
     }
 

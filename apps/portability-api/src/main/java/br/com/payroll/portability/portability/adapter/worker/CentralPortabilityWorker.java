@@ -189,10 +189,10 @@ public class CentralPortabilityWorker {
       reschedulePoll(job, null, null);
       return "submitted";
     } catch (CentralException ex) {
+      MDC.put(LogFields.ATTEMPT, String.valueOf(job.attemptCount() + 1));
       log.atWarn()
           .addKeyValue(LogFields.EVENT, LogEvents.CENTRAL_CALL_FAILED)
           .addKeyValue(LogFields.ERROR_CODE, IntegrationFailureCode.fromCentral(ex).name())
-          .addKeyValue(LogFields.ATTEMPT, String.valueOf(job.attemptCount() + 1))
           .log("Central submit failed");
       throw ex;
     }
@@ -227,10 +227,10 @@ public class CentralPortabilityWorker {
     try {
       status = centralGateway.pollStatus(protocol, operation.correlationId());
     } catch (CentralException ex) {
+      MDC.put(LogFields.ATTEMPT, String.valueOf(job.attemptCount() + 1));
       log.atWarn()
           .addKeyValue(LogFields.EVENT, LogEvents.CENTRAL_CALL_FAILED)
           .addKeyValue(LogFields.ERROR_CODE, IntegrationFailureCode.fromCentral(ex).name())
-          .addKeyValue(LogFields.ATTEMPT, String.valueOf(job.attemptCount() + 1))
           .addKeyValue(LogFields.PROTOCOL, protocol)
           .log("Central poll failed");
       throw ex;
@@ -305,10 +305,10 @@ public class CentralPortabilityWorker {
       jobRepository.markExhausted(
           job.id(), job.fenceToken(), sanitized, code.name(), now);
       telemetry.jobExhausted();
+      MDC.put(LogFields.ATTEMPT, String.valueOf(attempts));
       log.atError()
           .addKeyValue(LogFields.EVENT, LogEvents.JOB_EXHAUSTED)
           .addKeyValue(LogFields.ERROR_CODE, code.name())
-          .addKeyValue(LogFields.ATTEMPT, String.valueOf(attempts))
           .log("Job exhausted; requires review");
       return;
     }

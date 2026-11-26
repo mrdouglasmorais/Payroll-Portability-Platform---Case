@@ -58,9 +58,9 @@ public class CreatePortabilityService {
           operationRepository.claimIdempotencyOrFind(
               IDEMPOTENCY_SCOPE, command.idempotencyKey(), command.requestHash());
     } catch (IdempotencyConflictException ex) {
+      // correlationId lives in MDC — do not addKeyValue (ECS duplicate key).
       log.atWarn()
           .addKeyValue(LogFields.EVENT, LogEvents.IDEMPOTENCY_CONFLICT)
-          .addKeyValue(LogFields.CORRELATION_ID, command.correlationId())
           .log("Idempotency key reused with different payload");
       throw ex;
     }
@@ -68,7 +68,6 @@ public class CreatePortabilityService {
       log.atInfo()
           .addKeyValue(LogFields.EVENT, LogEvents.IDEMPOTENCY_REPLAY)
           .addKeyValue(LogFields.OPERATION_ID, claimedOrExisting.get().toString())
-          .addKeyValue(LogFields.CORRELATION_ID, command.correlationId())
           .log("Idempotent replay of create");
       return claimedOrExisting.get();
     }
@@ -138,7 +137,6 @@ public class CreatePortabilityService {
       log.atInfo()
           .addKeyValue(LogFields.EVENT, LogEvents.PORTABILITY_CREATED)
           .addKeyValue(LogFields.OPERATION_ID, operation.id().toString())
-          .addKeyValue(LogFields.CORRELATION_ID, command.correlationId())
           .addKeyValue(LogFields.RECEIVING_BANK, command.receivingAccount().bank())
           .addKeyValue(
               LogFields.RECEIVING_AGENCY_MASKED,
@@ -152,7 +150,6 @@ public class CreatePortabilityService {
       log.atWarn()
           .addKeyValue(LogFields.EVENT, LogEvents.RESERVATION_CONFLICT)
           .addKeyValue(LogFields.PARCELA_ID, ex.externalInstallmentId())
-          .addKeyValue(LogFields.CORRELATION_ID, command.correlationId())
           .log("Installment reservation conflict");
       throw ex;
     } finally {
