@@ -1,45 +1,33 @@
-# Payroll Portability Platform
+# Plataforma de Portabilidade de Folha
 
-Simulated payroll discount portability platform (Java/Spring Boot + React/TypeScript + PostgreSQL) with an independent **Central de Convênios** simulator. Synthetic data only — no real financial traffic.
+Simulação de portabilidade de descontos em folha (Java/Spring Boot + React/TypeScript + PostgreSQL) com um simulador independente da **Central de Convênios**. Apenas dados sintéticos — sem tráfego financeiro real.
 
-Architecture source of truth for decisions: [Miro board](https://miro.com/app/board/uXjVEJ1cEDw=/?share_link_id=843643210573) (indexed in [docs/architecture/system-design.md](docs/architecture/system-design.md)). Requirements: [traceability](docs/requirements-traceability.md), [compliance matrix](docs/compliance-matrix.md), [acceptance](docs/acceptance.md), [release readiness report](docs/release-readiness-report.md), [OpenAPI](contracts/openapi/), [AI harness](ai/README.md), [AGENTS.md](AGENTS.md).
+Fonte de decisões de arquitetura: [board Miro](https://miro.com/app/board/uXjVEJ1cEDw=/?share_link_id=843643210573) ([docs/architecture/system-design.md](docs/architecture/system-design.md)). Rastreio: [matriz de conformidade](docs/compliance-matrix.md), [aceitação](docs/acceptance.md), [contratos OpenAPI](contracts/openapi/), [harness de IA](ai/README.md), [AGENTS.md](AGENTS.md).
 
-## Overview
+## Visão geral
 
-Operator console captures beneficiary opt-in, loads the authorized discount agenda, registers portability (one or many installments) with a destination receiving account, tracks async Central confirmation, and shows an append-only audit timeline. Receiving account is applied only after verified `CONFIRMADA`.
+O console do operador registra o opt-in do beneficiário, carrega a agenda autorizada, cria a portabilidade (uma ou várias parcelas) com conta de destino, acompanha a confirmação assíncrona da Central e exibe a linha do tempo append-only. A conta de recebimento só é efetivada após `CONFIRMADA` verificada.
 
-## Features
+## Funcionalidades
 
-- RF01 Authorization (opt-in) with unique id via Central
-- RF02 Scoped future agenda (amount, discount date, agreement, status)
-- RF03 Portability create with eligibility, reservation, idempotency
-- RF04 Async 202 + protocol + SUBMIT/POLL worker (retry/backoff/lease/fencing)
-- RF05 Append-only operation events
-- RF06 Rejection vs technical failure (`REQUIRES_REVIEW`, typed `last_error_code`)
-- HMAC integrity both directions; lab fault injection on Central
+- Autorização (opt-in) com identificador único via Central
+- Agenda futura autorizada (valor, data de desconto, convênio, status)
+- Criação com elegibilidade, reserva, idempotência
+- Fluxo assíncrono 202 + protocolo + worker SUBMIT/POLL (retry, lease, fencing)
+- Eventos append-only da operação
+- Distinção rejeição de negócio × falha técnica (`REQUIRES_REVIEW`)
+- Integridade HMAC nos dois sentidos; injeção de falhas na Central
 
-## Architecture (short)
+## Arquitetura (resumo)
 
-Modular monolith (`portability-api`) + independent Central simulator + React operator UI. Dual PostgreSQL. Persistent leased jobs (no broker). Local transactions; eventual consistency via poll/reconcile. See [docs/architecture/overview.md](docs/architecture/overview.md) and ADRs under `docs/adr/`.
+Monólito modular (`portability-api`) + Central independente + UI React. Dois PostgreSQL. Jobs persistidos com lease (sem broker). Transações locais; consistência eventual via poll/reconciliação. Ver [overview](docs/architecture/overview.md) e ADRs em `docs/adr/`.
 
-## Stack
+## Pré-requisitos
 
-| Layer | Choice |
-| --- | --- |
-| Backend | Java 25, Spring Boot 4.2, JDBC + Flyway |
-| Frontend | React 19, TypeScript, Vite, TanStack Query, pnpm |
-| Data | PostgreSQL 17 (platform + central) |
-| Contracts | OpenAPI 3.1 + Redocly |
-| Integrity | HMAC-SHA256 canonical messages |
-| Tests | JUnit, Testcontainers, ArchUnit, Vitest, Playwright (+ axe smoke), k6 (lab) |
-| Delivery | Docker Compose, GitHub Actions (CodeQL, Gitleaks, Trivy) |
+- Docker + Docker Compose (caminho recomendado), **ou**
+- Temurin 25, Node 24, pnpm 10.18.2, PostgreSQL 17 local (dois bancos)
 
-## Prerequisites
-
-- Docker + Docker Compose
-- Optional local: Temurin 25, Node 24, pnpm 10.18.2, Maven Wrapper (bundled)
-
-## Quick start
+## Como executar (Docker)
 
 ```bash
 git clone https://github.com/mrdouglasmorais/Payroll-Portability-Platform---Case.git
@@ -48,74 +36,125 @@ cp .env.example .env
 docker compose up --build -d
 ```
 
-Wait until healthy, then open the console.
-
-| Surface | URL |
+| Superfície | URL |
 | --- | --- |
-| Operator console (pt-BR) | http://localhost:5173 |
-| Portability API health | http://localhost:8080/actuator/health |
-| Portability API status | http://localhost:8080/api/v1/status |
-| Portability metrics (Prometheus) | http://localhost:8080/actuator/prometheus |
-| Central simulator health | http://localhost:8081/actuator/health |
-| Central metrics (Prometheus) | http://localhost:8081/actuator/prometheus |
+| Console operacional (pt-BR) | http://localhost:5173 |
+| API da plataforma (health) | http://localhost:8080/actuator/health |
+| Status da plataforma | http://localhost:8080/api/v1/status |
+| Métricas Prometheus (API) | http://localhost:8080/actuator/prometheus |
+| Central (health) | http://localhost:8081/actuator/health |
 
-Stop: `docker compose down`. Reset disposable lab volumes: `docker compose down -v`.
+Parar: `docker compose down`. Lab descartável (apaga volumes): `docker compose down -v`.
 
-## Demo data (synthetic)
+## Rodando sem Docker
 
-| Beneficiary | Purpose |
-| --- | --- |
-| `ben-ui` / `conv-1` | Operator UI / Playwright (`parcela-ui-*`) |
-| `ben-001` | Dual-stack API E2E |
-| `ben-recover` | Lost-response / restart harness |
-| `*-reject`, `*-503`, `*-timeout` suffixes | Central fault modes |
+Use dois Postgres (plataforma e Central), copie `.env.example` e ajuste URLs/portas.
 
-UI defaults to `ben-ui` / `conv-1`. After a confirmed demo, **do not partially reopen PORTED parcels**. For disposable labs only, recreate volumes:
+### 1) Central de Convênios (mock)
 
 ```bash
-docker compose down -v
-docker compose up --build -d
+cd apps/central-simulator
+export SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5433/central
+export SPRING_DATASOURCE_USERNAME=central
+export SPRING_DATASOURCE_PASSWORD=central
+export CENTRAL_HMAC_SECRET=local-test-hmac-secret
+export CENTRAL_HMAC_KEY_ID=local-test-key
+export CENTRAL_CONFIRM_DELAY=PT2S
+export CENTRAL_FAULT_RATE=0          # demos ocasionais: 0.2
+export CENTRAL_FAULT_SEED=42
+export SERVER_PORT=8081
+./mvnw spring-boot:run
 ```
 
-`scripts/lab-reset-demo-parcels.sh` refuses financial reopen and points to the volume recreate path. That path is **not** safe for persistent financial environments.
+Health: `http://localhost:8081/actuator/health`
+
+### 2) Backend da plataforma
+
+```bash
+cd apps/portability-api
+export SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/portability
+export SPRING_DATASOURCE_USERNAME=portability
+export SPRING_DATASOURCE_PASSWORD=portability
+export CENTRAL_BASE_URL=http://localhost:8081
+export CENTRAL_HMAC_SECRET=local-test-hmac-secret
+export CENTRAL_HMAC_KEY_ID=local-test-key
+export SERVER_PORT=8080
+./mvnw spring-boot:run
+```
+
+Health: `http://localhost:8080/actuator/health`
+
+### 3) Frontend (console)
+
+```bash
+cd apps/web
+pnpm install
+pnpm dev
+```
+
+Dev server em http://localhost:5173 (proxy de `/api` e `/actuator` para a API em `:8080`).
+
+Variáveis principais também estão em [`.env.example`](.env.example).
+
+## Dados de demonstração (sintéticos)
+
+| Beneficiário | Uso |
+| --- | --- |
+| `ben-ui` / `conv-1` | Console / Playwright (`parcela-ui-*`) |
+| `ben-001` | E2E dual-stack |
+| `ben-recover` | Recuperação / restart |
+| Sufixos `*-reject`, `*-503`, `*-timeout` | Falhas **determinísticas** na Central |
+
+Após uma confirmação, **não reabra parcialmente** parcelas `PORTED`. Em lab descartável: `docker compose down -v`.
 
 ### Flyway V8 / V9 (Central)
 
-- `V8__reopen_ui_demo_parcels.sql` historically reopened demo parcels and cleared active reservations on migrate. It remains in Flyway history and **still executes on clean installs** that have not applied it yet.
-- `V9__lab_reset_policy.sql` is a **no-op marker** documenting the hazard. It does **not** undo V8 effects on databases that already ran V8.
-- Prefer exclusive synthetic beneficiaries per run over mutating shared financial history.
+- `V8` historicamente reabriu parcelas de demo no migrate e ainda roda em instalação limpa.
+- `V9` é marcador de política (no-op) e **não desfaz** a V8.
+- Reset seguro = volumes descartáveis; não use isso em ambientes financeiros persistentes.
 
-## How to demonstrate
+## Como demonstrar
 
-### Scenario A — Confirmed portability
+### Cenário A — Portabilidade confirmada
 
-1. Open http://localhost:5173
-2. Authorize `ben-ui` / `conv-1`
-3. Select an OPEN installment → destination account → review → submit
-4. Timeline polls until **Confirmada**; account is applied only then
+1. Abra http://localhost:5173  
+2. Autorize `ben-ui` / `conv-1`  
+3. Selecione parcela OPEN → conta destino → revisão → envio  
+4. Timeline até **Confirmada**; conta só então é efetivada  
 
-### Scenario B — Rejected portability
+### Cenário B — Rejeição de negócio
 
-1. Authorize a beneficiary whose id ends with `-reject` (seeded) **or** call Central with fault header in API tests
-2. Complete create; timeline ends **Rejeitada**
-3. Prior effective receiving account unchanged; reservation released
+1. Beneficiário com sufixo `-reject` **ou** header `X-Sim-Fault: REJECT`  
+2. Timeline termina **Rejeitada**; conta efetiva anterior preservada  
 
-### Scenario C — Technical failure (not financial rejection)
+### Cenário C — Falha técnica (não é rejeição)
 
-1. Use `*-503` / timeout seeds or Central unavailable
-2. Operation stays non-terminal / `REQUIRES_REVIEW` as applicable
-3. Worker retries with backoff; no false `REJEITADA`
+1. Sufixos `-503` / timeout, `CENTRAL_FAULT_RATE` em demo, ou Central indisponível  
+2. Operação permanece não terminal / `REQUIRES_REVIEW`  
+3. Worker faz retry; sem `REJEITADA` falsa  
 
-### Scenario D — Idempotency
+### Cenário D — Idempotência
 
-1. Submit once; retry same payload + same `Idempotency-Key` → same operation id
-2. Same key + different payload → HTTP 409
-3. UI reuses the key on 503 retry; “Nova operação” rotates the key
+1. Mesmo payload + mesma `Idempotency-Key` → mesmo `operationId`  
+2. Mesma chave + payload diferente → HTTP 409  
+3. Disputa de **duas abas** pela mesma parcela (chaves diferentes) → um `202` e um `409` (nunca `500`)
 
-## How to run tests
+## Falhas na Central: dois modos
+
+| Modo | Como ativar | Uso |
+| --- | --- | --- |
+| Determinístico | Sufixo do beneficiário (`-reject`, `-503`, `-timeout`) ou header `X-Sim-Fault` | CI, dual-stack, demos reproduzíveis |
+| Probabilístico (opcional) | `CENTRAL_FAULT_RATE=0.2` + `CENTRAL_FAULT_SEED=42` | Simular “falhas ocasionais” do enunciado |
+
+Precedência: header → sufixo → sorteio. O padrão é `CENTRAL_FAULT_RATE=0` para a esteira permanecer determinística.
+
+## Assinatura HMAC (headers, não no corpo)
+
+O esboço do PDF sugere `assinatura` no JSON. Aqui a assinatura vai nos headers (`X-Signature`, `X-Timestamp`, `X-Nonce`, `X-Key-Id`): o corpo permanece só negócio e evita assinar um documento que contém a própria assinatura. Detalhes: [ADR-009](docs/adr/ADR-009-hmac.md).
+
+## Como rodar os testes
 
 ```bash
-# From repository root
 cd apps/portability-api && ./mvnw -B verify && cd ../..
 cd apps/central-simulator && ./mvnw -B verify && cd ../..
 cd apps/web && pnpm install && pnpm test && pnpm build && cd ../..
@@ -123,84 +162,58 @@ cd apps/web && pnpm install && pnpm test && pnpm build && cd ../..
 npx --yes @redocly/cli@1.34.5 lint --config redocly.yaml \
   contracts/openapi/platform.yaml contracts/openapi/central.yaml
 
-# Compose must be healthy (prefer clean volumes for Playwright parcel budget)
+# Compose saudável
 ./tests/e2e/dual-stack.sh
 ./tests/e2e/timeout-recovery.sh
 ./tests/e2e/process-kill-recovery.sh
 
 cd tests/e2e && pnpm install && pnpm exec playwright install chromium && pnpm test && cd ../..
-
-# Lab-only load smoke (not a production SLO)
-docker run --rm -i --network host -e API_BASE=http://localhost:8080 \
-  grafana/k6:0.54.0 run - < tests/performance/k6-m6-portability.js
 ```
 
-### Recovery harnesses (coverage boundary)
+Cobertura de recuperação:
 
-| Script | Covers | Does not cover |
+| Script | Cobre | Não cobre |
 | --- | --- | --- |
-| `timeout-recovery.sh` | Lost local protocol after Central accept; same key restores protocol; restart → terminal | Exact process death mid-HTTP |
-| `process-kill-recovery.sh` | SIGKILL **after** local `central_protocol` persist → recover without duplicate ops | Critical window: Central accepted, local protocol **not** yet durable |
+| `timeout-recovery.sh` | Protocolo local perdido após aceite; mesma chave restaura | Morte exata no meio do HTTP |
+| `process-kill-recovery.sh` | SIGKILL **depois** de persistir `central_protocol` | Janela crítica: Central aceitou e protocolo local ainda não durável |
 
-Mitigation for the pre-persist window: reuse the same `Idempotency-Key` (Central returns the original protocol) + [reconciliation runbook](docs/runbooks/reconciliation.md). Deterministic kill in that window would require production test hooks — out of scope.
+Mitigação da janela pré-persistência: reutilizar a mesma `Idempotency-Key` + [runbook de reconciliação](docs/runbooks/reconciliation.md).
 
-## How the Central works
+## Como a Central funciona
 
-Independent Spring Boot service with its own database. Implements the suggested contract (`/autorizacoes`, agenda, `202` + protocolo, status with optional `204` + `Retry-After`). Signs/verifies HMAC, enforces idempotency (raw-body fingerprint), reserves installments, delays confirmation, and supports fault modes (confirm / reject / timeout / unavailable). Platform never holds DB transactions open across Central HTTP calls.
+Serviço Spring Boot independente, banco próprio. Contrato sugerido (`/autorizacoes`, agenda, `202` + protocolo, status com `204` + `Retry-After`). Assina/verifica HMAC, idempotência (fingerprint do corpo bruto), reserva parcelas, atrasa confirmação e injeta falhas. A plataforma **não** segura transação de banco aberta durante chamadas HTTP à Central.
 
-## External libraries (why)
+## O que faria com mais tempo
 
-| Library | Why |
-| --- | --- |
-| Spring Boot | HTTP, JDBC, scheduling, Actuator health for Compose/CI |
-| Flyway | Versioned schema + financial constraints |
-| PostgreSQL | Relational invariants, partial unique indexes, `FOR UPDATE` |
-| Testcontainers | Real Postgres for idempotency/concurrency ITs |
-| ArchUnit | Domain must not depend on Spring Web |
-| React + TypeScript | Typed operator UI |
-| TanStack Query | Server state, polling that stops on terminal status |
-| Vite + pnpm | Fast reproducible frontend toolchain |
-| Playwright + `@axe-core/playwright` | Operator E2E + accessibility smoke (not WCAG certification) |
-| Redocly | OpenAPI lint gate |
-| k6 | Optional lab smoke under contention |
+- Autenticação do operador e controle de acesso por operação
+- Rotação de chave HMAC e mTLS entre plataforma e Central
+- Outbox com broker quando o volume justificar
+- Workers em lote (claim N jobs por ciclo)
+- Painel de reconciliação para `REQUIRES_REVIEW`
+- Política de retenção de dados pessoais / PII
+- Estudos de capacidade (soak) além do smoke k6 de laboratório
 
-## Architectural decisions
+## Limitações conhecidas
 
-See `docs/adr/` (modular monolith, dual DB, persistent jobs, HMAC, reservations, polling, AI harness). Trade-off detail: [idempotency-and-integrity](docs/architecture/idempotency-and-integrity.md), [worker-lease](docs/architecture/worker-lease.md), [reconciliation runbook](docs/runbooks/reconciliation.md), [observability](docs/architecture/observability.md).
+- Laboratório: sem bancos reais, sem SSO de operador
+- `V8` permanece no histórico Flyway da Central; `V9` não a desfaz
+- Kill de processo cobre pós-persistência do protocolo; janela pré-persistência é residual documentado
+- Acessibilidade automatizada é smoke (axe + teclado), não certificação WCAG 2.2 AA integral
+- Contadores Prometheus são operacionais — fonte contábil = Postgres + trilha de auditoria
 
-## Trade-offs
+## Decisões arquiteturais
 
-- DB-backed jobs avoid broker ops cost; polling matches Central contract; fencing + leases handle crashed workers.
-- Central fingerprint is raw-body; platform fingerprint is semantic field hash — documented intentionally.
-- No operator authentication in lab; HMAC protects service-to-service messages, not end-user identity.
-- Prometheus financial counters emit after commit and are **operational only** — not authoritative accounting (DB + audit trail are).
-- Future: production auth, key rotation, retention, richer reconciliation CLI, load capacity studies (not claimed here).
+Ver `docs/adr/` (monólito modular, dual DB, jobs persistidos, HMAC, reservas, polling, harness de IA). Detalhes: [idempotência](docs/architecture/idempotency-and-integrity.md), [lease do worker](docs/architecture/worker-lease.md), [observabilidade](docs/architecture/observability.md).
 
-## AI harness
+## Harness de IA
 
-Expected by the challenge. Skills live in `.agents/skills/`; sessions in `ai/sessions/` (`AI-000` … `AI-014`). Human review of financial/release findings performed (candidate-owned). Humans own commits. Do not treat AI session narrative as proof without command evidence.
+O desafio pede uso auditável de IA. Skills em `.agents/skills/`; evidências em `ai/sessions/`. Humanos aprovam commits e invariantes financeiras. Exemplos de correção/rejeição de sugestões da IA: [ai/README.md](ai/README.md).
 
-## Evidence (published tip)
+## Evidência do tip publicado
 
-| Kind | Value |
+| Campo | Valor |
 | --- | --- |
 | SHA | `d0dcbbc4f54b315e1f59008f87b81d4781c2c5d6` |
-| Remote CI | [SUCCESS 8/8](https://github.com/mrdouglasmorais/Payroll-Portability-Platform---Case/actions/runs/45740557504) |
-| Session | `ai/sessions/AI-014-final-release-hardening.md` |
+| CI remota | [SUCCESS 8/8](https://github.com/mrdouglasmorais/Payroll-Portability-Platform---Case/actions/runs/45740557504) |
 
-## Known limitations
-
-- Lab-only: no real banks, no operator SSO, synthetic beneficiaries.
-- `V8` demo reopen remains in Flyway history on clean Central installs; `V9` does not undo it; disposable volume wipe only.
-- `process-kill-recovery.sh` covers post-persist SIGKILL only; pre-persist critical window is a documented residual.
-- Accessibility checks are automated smoke (axe wcag2a/aa + keyboard) across wizard steps — **not** full WCAG 2.2 AA certification.
-- Operator auth, soak tests, retention/PII policies, and production-grade secret management remain future work.
-
-## Milestones
-
-- **M0–M9**: foundation → financial correctness (see git history)
-- **AI-010**: residual races + lab reset policy
-- **AI-011**: operator UI pt-BR
-- **AI-012**: release readiness / lock order / CI & docs
-- **M10 / AI-013**: observability metrics, request hardening, manual validation DONE
-- **AI-014**: final release hardening (docs honesty, afterCommit metrics, a11y smoke expansion)
+Não declare CI verde para commits ainda não publicados.

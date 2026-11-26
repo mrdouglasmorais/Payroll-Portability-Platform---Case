@@ -11,6 +11,12 @@ public interface InstallmentRepository {
   void save(InstallmentSnapshot installment);
 
   /**
+   * Atomically marks an OPEN installment as RESERVED. Returns {@code 1} on win, {@code 0} if
+   * another transaction already reserved or ported it (safe under concurrent create).
+   */
+  int reserveIfOpen(UUID installmentId);
+
+  /**
    * Updates only mutable agenda attributes for rows that are still OPEN. Never touches
    * status or effective receiving account (avoids racing with portability finalization).
    *

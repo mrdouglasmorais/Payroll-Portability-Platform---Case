@@ -47,6 +47,18 @@ public class JdbcInstallmentRepository implements InstallmentRepository {
   }
 
   @Override
+  public int reserveIfOpen(UUID installmentId) {
+    return jdbc.update(
+        """
+        UPDATE installment_snapshots
+        SET status = 'RESERVED'
+        WHERE id = ?
+          AND status = 'OPEN'
+        """,
+        installmentId);
+  }
+
+  @Override
   public void save(InstallmentSnapshot installment) {
     Integer exists =
         jdbc.queryForObject(

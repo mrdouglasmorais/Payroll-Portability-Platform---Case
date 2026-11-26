@@ -37,3 +37,6 @@ app:
   hmac-max-skew: PT5M
   sim:
     confirm-delay: ${CENTRAL_CONFIRM_DELAY:PT2S}
+    # 0 = deterministic CI (suffix / X-Sim-Fault only). Demo chaos: CENTRAL_FAULT_RATE=0.2
+    fault-rate: ${CENTRAL_FAULT_RATE:0}
+    fault-seed: ${CENTRAL_FAULT_SEED:42}

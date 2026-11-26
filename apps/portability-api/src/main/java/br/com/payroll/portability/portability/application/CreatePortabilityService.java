@@ -71,8 +71,8 @@ public class CreatePortabilityService {
           throw new DomainException("Parcela não pertence ao beneficiário");
         }
         if (installment.status() != InstallmentStatus.OPEN) {
-          throw new DomainException(
-              "Parcela não está aberta: " + installment.externalInstallmentId());
+          throw new IllegalStateException(
+              "Parcela já reservada: " + installment.externalInstallmentId());
         }
         if (installment.discountDate().isBefore(today)) {
           throw new DomainException(
@@ -97,9 +97,12 @@ public class CreatePortabilityService {
               command.correlationId(),
               now);
 
+      // Conditional UPDATE prevents lost races; loser maps to HTTP 409 (never 500).
       for (InstallmentSnapshot installment : installments) {
-        installment.reserve();
-        installmentRepository.save(installment);
+        if (installmentRepository.reserveIfOpen(installment.id()) != 1) {
+          throw new IllegalStateException(
+              "Parcela já reservada: " + installment.externalInstallmentId());
+        }
       }
 
       operationRepository.insertAtomicCreate(operation);

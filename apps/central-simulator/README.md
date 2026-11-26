@@ -1,8 +1,8 @@
 # apps/central-simulator
 
-Independent Central protocol simulator (Spring Boot 4 / Java 25).
+Simulador independente do protocolo da Central (Spring Boot 4 / Java 25).
 
-## Local commands
+## Comandos locais
 
 ```bash
 ./mvnw spring-boot:run
@@ -10,6 +10,14 @@ Independent Central protocol simulator (Spring Boot 4 / Java 25).
 ```
 
 Health: `GET /actuator/health`  
-Bootstrap status: `GET /status`
+Status: `GET /status`
 
-HMAC, failure injection and protocol semantics arrive in M3.
+## Injeção de falhas
+
+| Precedência | Mecanismo |
+|---|---|
+| 1 | Header `X-Sim-Fault` (`REJECT`, `TIMEOUT`, `UNAVAILABLE`, `CONFIRM`) |
+| 2 | Sufixo do `beneficiarioId` (`-reject`, `-timeout`, `-503`) |
+| 3 | Probabilístico opcional: `CENTRAL_FAULT_RATE` + `CENTRAL_FAULT_SEED` |
+
+CI e dual-stack usam taxa `0` (determinístico). Para demos “ocasionais”: `CENTRAL_FAULT_RATE=0.2`.

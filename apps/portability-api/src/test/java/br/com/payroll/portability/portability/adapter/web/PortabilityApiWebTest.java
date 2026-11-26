@@ -233,6 +233,71 @@ class PortabilityApiWebTest {
   }
 
   @Test
+  void concurrentHttpCompetingParcelsReturnAcceptedAndConflictNever500() throws Exception {
+    String body =
+        """
+        {
+          "beneficiarioId":"ben-web",
+          "parcelas":["parcela-web-1"],
+          "credorCessionario":"creditor-x",
+          "contaRecebimento":{"banco":"001","agencia":"1234","conta":"999-0"}
+        }
+        """;
+    var latch = new CountDownLatch(1);
+    AtomicInteger accepted = new AtomicInteger();
+    AtomicInteger conflict = new AtomicInteger();
+    AtomicInteger other = new AtomicInteger();
+    try (var executor = Executors.newFixedThreadPool(2)) {
+      List<Future<?>> futures = new java.util.ArrayList<>();
+      for (int i = 0; i < 2; i++) {
+        final String key = "compete-key-" + i;
+        futures.add(
+            executor.submit(
+                () -> {
+                  try {
+                    latch.await();
+                    int code =
+                        mockMvc
+                            .perform(
+                                post("/api/v1/operacoes-portabilidade")
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .header("Idempotency-Key", key)
+                                    .header("X-Correlation-Id", UUID.randomUUID().toString())
+                                    .content(body))
+                            .andReturn()
+                            .getResponse()
+                            .getStatus();
+                    if (code == 202) {
+                      accepted.incrementAndGet();
+                    } else if (code == 409) {
+                      conflict.incrementAndGet();
+                    } else {
+                      other.incrementAndGet();
+                    }
+                  } catch (Exception ex) {
+                    other.incrementAndGet();
+                  }
+                }));
+      }
+      latch.countDown();
+      for (Future<?> future : futures) {
+        future.get();
+      }
+    }
+    assertEquals(1, accepted.get(), "exactly one winner");
+    assertEquals(1, conflict.get(), "loser must be HTTP 409");
+    assertEquals(0, other.get(), "no 500/other statuses on parcel dispute");
+    Integer active =
+        jdbc.queryForObject(
+            """
+            SELECT COUNT(*) FROM installment_reservations
+            WHERE external_installment_id = 'parcela-web-1' AND status = 'ACTIVE'
+            """,
+            Integer.class);
+    assertEquals(1, active);
+  }
+
+  @Test
   void concurrentHttpSameIdempotencyKeyReturnsSingleOperation() throws Exception {
     String body =
         """

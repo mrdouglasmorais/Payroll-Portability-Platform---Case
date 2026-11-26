@@ -34,16 +34,20 @@ public class CentralProtocolService {
   private final ObjectMapper objectMapper;
   private final Clock clock;
   private final Duration confirmDelay;
+  private final FaultSelector faultSelector;
 
   public CentralProtocolService(
       JdbcTemplate jdbc,
       ObjectMapper objectMapper,
       Clock clock,
-      @Value("${app.sim.confirm-delay:PT2S}") Duration confirmDelay) {
+      @Value("${app.sim.confirm-delay:PT2S}") Duration confirmDelay,
+      @Value("${app.sim.fault-rate:0}") double faultRate,
+      @Value("${app.sim.fault-seed:42}") long faultSeed) {
     this.jdbc = jdbc;
     this.objectMapper = objectMapper;
     this.clock = clock;
     this.confirmDelay = confirmDelay;
+    this.faultSelector = new FaultSelector(faultRate, faultSeed);
   }
 
   @Transactional
@@ -136,7 +140,8 @@ public class CentralProtocolService {
       return claimed.get();
     }
 
-    FaultMode faultMode = parseFault(faultHeader, root.path("beneficiarioId").asText(""));
+    FaultMode faultMode =
+        faultSelector.select(faultHeader, root.path("beneficiarioId").asText(""));
     if (faultMode == FaultMode.UNAVAILABLE) {
       releaseIdempotencyClaim(idempotencyKey);
       throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Simulated outage");
@@ -448,22 +453,6 @@ public class CentralProtocolService {
         WHERE pi.protocol_id = ? AND pi.external_installment_id = a.external_installment_id
         """,
         protocolId);
-  }
-
-  private FaultMode parseFault(String header, String beneficiaryId) {
-    if (header != null && !header.isBlank()) {
-      return FaultMode.valueOf(header.trim().toUpperCase());
-    }
-    if (beneficiaryId.endsWith("-timeout")) {
-      return FaultMode.TIMEOUT;
-    }
-    if (beneficiaryId.endsWith("-reject")) {
-      return FaultMode.REJECT;
-    }
-    if (beneficiaryId.endsWith("-503")) {
-      return FaultMode.UNAVAILABLE;
-    }
-    return FaultMode.CONFIRM;
   }
 
   private static String requiredText(JsonNode node, String field) {

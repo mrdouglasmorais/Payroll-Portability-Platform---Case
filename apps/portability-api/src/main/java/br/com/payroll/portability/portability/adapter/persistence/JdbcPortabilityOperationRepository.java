@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import org.springframework.dao.DuplicateKeyException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -152,9 +152,8 @@ public class JdbcPortabilityOperationRepository implements PortabilityOperationR
             externalId,
             operation.id(),
             Timestamp.from(now));
-      } catch (DuplicateKeyException ex) {
-        throw new IllegalStateException(
-            "Parcela já reservada: " + externalId, ex);
+      } catch (DataIntegrityViolationException ex) {
+        throw new IllegalStateException("Parcela já reservada: " + externalId, ex);
       }
     }
 

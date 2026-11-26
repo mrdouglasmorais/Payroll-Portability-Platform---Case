@@ -4,6 +4,7 @@ import br.com.payroll.portability.integration.central.CentralException;
 import br.com.payroll.portability.portability.application.IdempotencyConflictException;
 import br.com.payroll.portability.shared.domain.DomainException;
 import java.util.Map;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -34,12 +35,34 @@ public class ApiExceptionHandler {
     return ResponseEntity.status(status).body(Map.of("error", ex.getMessage()));
   }
 
+  /**
+   * Competing portability creates (two tabs / two keys, same parcel) must surface as 409, never
+   * as an unhandled 500.
+   */
   @ExceptionHandler(IllegalStateException.class)
   public ResponseEntity<Map<String, String>> conflictState(IllegalStateException ex) {
-    if (ex.getMessage() != null && ex.getMessage().startsWith("Parcela já reservada")) {
-      return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", ex.getMessage()));
+    if (isReservationConflict(ex.getMessage())) {
+      return ResponseEntity.status(HttpStatus.CONFLICT)
+          .body(Map.of("error", ex.getMessage() == null ? "Parcela já reservada" : ex.getMessage()));
     }
     return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
         .body(Map.of("error", ex.getMessage() == null ? "erro" : ex.getMessage()));
+  }
+
+  @ExceptionHandler(DataIntegrityViolationException.class)
+  public ResponseEntity<Map<String, String>> dataIntegrity(DataIntegrityViolationException ex) {
+    String message = ex.getMostSpecificCause().getMessage();
+    if (message != null
+        && (message.contains("uq_active_installment_reservation")
+            || message.contains("installment_reservations"))) {
+      return ResponseEntity.status(HttpStatus.CONFLICT)
+          .body(Map.of("error", "Parcela já reservada"));
+    }
+    return ResponseEntity.status(HttpStatus.CONFLICT)
+        .body(Map.of("error", "Conflito de integridade nos dados da operação"));
+  }
+
+  private static boolean isReservationConflict(String message) {
+    return message != null && message.startsWith("Parcela já reservada");
   }
 }
