@@ -120,7 +120,7 @@ flowchart LR
 | 02–05 C4/DDD | [overview.md](overview.md), ADR-001/002 |
 | 06 dados | ADR-003, [data-model.md](data-model.md), Flyway |
 | 07–10 async/estado | SPEC-003/004/007/008, ADR-006/007/010/011 |
-| 08 idempotência | SPEC-005, ADR-005 |
+| 08 idempotência | SPEC-005, ADR-005, [contract-divergences.md](contract-divergences.md) |
 | 11 segurança | SPEC-006, ADR-009 |
 | 12 observabilidade | ADR-014, [observability.md](observability.md) |
 | 13 DevSecOps | `.github/workflows`, `docker-compose.yml` |

@@ -1,6 +1,6 @@
 # SPEC-006-integrity
 
-Status: Proposed
+Status: Accepted
 
 Source mapping: RNF1. Identifiers assigned locally, not in original challenge.
 

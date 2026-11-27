@@ -1,6 +1,6 @@
 # SPEC-002-schedule
 
-Status: Proposed
+Status: Accepted
 
 Source mapping: RF2. Identifiers assigned locally, not in original challenge.
 

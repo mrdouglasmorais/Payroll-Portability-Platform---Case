@@ -1,6 +1,6 @@
 # SPEC-008-failure-recovery
 
-Status: Proposed
+Status: Accepted
 
 Source mapping: RF6/RNF3/RNF4. Identifiers assigned locally, not in original challenge.
 

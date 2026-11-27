@@ -1,18 +1,20 @@
 # ADR-007: state-machine
 
-Status: Proposed
+Status: Accepted
 
 ## Context
-Technical challenge requires a maintainable, auditable simulated financial workflow.
+Operators must never confuse integration failure with business rejection (RF06).
 
 ## Decision
-Separate business and technical states.
+Separate **business** status (`PENDENTE` / `CONFIRMADA` / `REJEITADA`) from **technical** job status (`PENDING` / `RUNNING` / `FAILED` / `SUCCEEDED` / `EXHAUSTED`).
+
+API projection: when the job is `EXHAUSTED`, `GET` status returns `processing.status = REQUIRES_REVIEW` while business status stays `PENDENTE` until a verified Central terminal outcome. See [contract-divergences.md](../architecture/contract-divergences.md).
 
 ## Alternative
-Single status enum.
+Single status enum mixing business and transport failures.
 
 ## Consequences
-Avoid false rejection; reconciliation needed.
+Avoid false rejection; reconciliation needed for `REQUIRES_REVIEW` ([runbook](../runbooks/reconciliation.md)).
 
 ## Revisit
-Reassess if measured constraints or business requirements invalidate this decision.
+Reassess if product requires an explicit persisted `REQUIRES_REVIEW` column (today it is derived).

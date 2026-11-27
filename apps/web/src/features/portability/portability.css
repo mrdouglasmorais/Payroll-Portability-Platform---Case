@@ -383,7 +383,8 @@
 }
 
 .status-row strong[data-status='PENDENTE'] {
-  color: var(--color-warning);
+  /* Darker than --color-warning (#ea7f06) for WCAG AA on white (~4.5:1+). */
+  color: #9a5500;
 }
 
 .timeline {
@@ -575,7 +576,8 @@
 }
 
 .history-list__status[data-status='PENDENTE'] {
-  color: var(--color-warning);
+  /* Match tracking PENDENTE — AA contrast on white history cards. */
+  color: #9a5500;
 }
 
 .history-list__meta {

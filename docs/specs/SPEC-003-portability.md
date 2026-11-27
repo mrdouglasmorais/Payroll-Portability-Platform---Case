@@ -1,6 +1,6 @@
 # SPEC-003-portability
 
-Status: Proposed
+Status: Accepted
 
 Source mapping: RF3. Identifiers assigned locally, not in original challenge.
 

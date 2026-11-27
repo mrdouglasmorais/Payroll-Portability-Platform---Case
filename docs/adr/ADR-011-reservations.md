@@ -1,6 +1,6 @@
 # ADR-011: reservations
 
-Status: Proposed
+Status: Accepted
 
 ## Context
 Technical challenge requires a maintainable, auditable simulated financial workflow.

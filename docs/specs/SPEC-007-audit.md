@@ -1,6 +1,6 @@
 # SPEC-007-audit
 
-Status: Proposed
+Status: Accepted
 
 Source mapping: RF5/RNF5. Identifiers assigned locally, not in original challenge.
 

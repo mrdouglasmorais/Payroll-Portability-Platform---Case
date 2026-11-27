@@ -1,6 +1,6 @@
 # ADR-004: central-simulator
 
-Status: Proposed
+Status: Accepted
 
 ## Context
 Technical challenge requires a maintainable, auditable simulated financial workflow.

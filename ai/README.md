@@ -2,7 +2,7 @@
 
 Catálogo de skills: `.agents/skills/` (33). Instruções do projeto: `AGENTS.md`. Skills são procedimentos, não agentes autônomos.
 
-Use `sessions/TEMPLATE.md` para evidência. Sessões históricas em `sessions/` (`AI-000` … `AI-014`).
+Use `sessions/TEMPLATE.md` para evidência. Sessões em `sessions/` (`AI-000` … `AI-023`).
 
 ## Defesa no code review (exemplos concretos)
 
@@ -36,5 +36,10 @@ Não trate narrativa de sessão como prova sem comando executado. Humanos aprova
 | AI-012 | Prontidão de release |
 | AI-013 | Observabilidade + validação manual |
 | AI-014 | Hardening final de release |
+| AI-015…020 | Observabilidade, load, validação |
+| AI-021 | README bibliotecas |
+| AI-022 | RF4/RF5 conta + histórico |
+| AI-023 | Paginação do histórico |
+| AI-024 | Alinhamento docs vs código (matriz/ADRs) |
 
 Nunca publique segredos ou dados reais de beneficiários.

@@ -179,7 +179,15 @@ Mitigação da janela pré-persistência: reutilizar a mesma `Idempotency-Key` +
 
 ## Como a Central funciona
 
-Serviço Spring Boot independente, banco próprio. Contrato sugerido (`/autorizacoes`, agenda, `202` + protocolo, status com `204` + `Retry-After`). Assina/verifica HMAC, idempotência (fingerprint do corpo bruto), reserva parcelas, atrasa confirmação e injeta falhas. A plataforma **não** segura transação de banco aberta durante chamadas HTTP à Central.
+Serviço Spring Boot independente, banco próprio. Contrato sugerido (`/autorizacoes`, agenda, `202` + protocolo, status com `204` + `Retry-After`). Assina/verifica HMAC, idempotência por **hash do corpo bruto** (enquanto a plataforma usa fingerprint **semântico** — [ADR-005](docs/adr/ADR-005-idempotency.md)), reserva parcelas, atrasa confirmação e injeta falhas. A plataforma **não** segura transação de banco aberta durante chamadas HTTP à Central.
+
+Divergências conscientes do esboço PDF (ex.: agenda `OPEN` vs `ABERTA`, conta achatada na borda): [contract-divergences.md](docs/architecture/contract-divergences.md).
+
+### Status técnico vs negócio
+
+- Negócio: `PENDENTE` / `CONFIRMADA` / `REJEITADA`.
+- Job: `FAILED` = falhou com **retry** ainda elegível; `EXHAUSTED` = retries esgotados.
+- `processing.status = REQUIRES_REVIEW` na API é **derivado** de `EXHAUSTED` (não é coluna de negócio).
 
 ## O que faria com mais tempo
 
@@ -247,7 +255,8 @@ O desafio pede uso auditável de IA. Skills em `.agents/skills/`; evidências em
 
 | Campo | Valor |
 | --- | --- |
-| SHA | `d0dcbbc4f54b315e1f59008f87b81d4781c2c5d6` |
-| CI remota | [SUCCESS 8/8](https://github.com/mrdouglasmorais/Payroll-Portability-Platform---Case/actions/runs/45740557504) |
+| SHA (tip) | _(preenchido após commit — ver `git rev-parse HEAD`)_ |
+| CI no tip | Pendente Actions após push deste pacote (docs alignment + fix e2e/contraste). Tip anterior `bef4234` [FAIL compose-smoke](https://github.com/mrdouglasmorais/Payroll-Portability-Platform---Case/actions/runs/45940063545). |
+| Última CI verde conhecida | `d0dcbbc4f54b315e1f59008f87b81d4781c2c5d6` — [SUCCESS 8/8](https://github.com/mrdouglasmorais/Payroll-Portability-Platform---Case/actions/runs/45740557504) |
 
-Não declare CI verde para commits ainda não publicados.
+Não declare CI verde para commits ainda não publicados **nem** para tip com Actions vermelho.

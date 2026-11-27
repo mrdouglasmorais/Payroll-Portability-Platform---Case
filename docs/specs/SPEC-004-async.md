@@ -1,6 +1,6 @@
 # SPEC-004-async
 
-Status: Proposed
+Status: Accepted
 
 Source mapping: RF4. Identifiers assigned locally, not in original challenge.
 

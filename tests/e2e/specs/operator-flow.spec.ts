@@ -72,10 +72,15 @@ async function submitAndWaitTerminal(page: Page) {
   await expect(page.getByRole('heading', { name: 'Resultado e auditoria' })).toBeVisible({
     timeout: 30_000,
   })
-  await expect(page.locator('[data-status]')).toBeVisible({ timeout: 30_000 })
-  await expect(page.locator('[data-status="CONFIRMADA"]')).toHaveText('Confirmada', {
-    timeout: 90_000,
-  })
+  // Scope to tracking status — history list also uses data-status.
+  const trackingStatus = page.locator('.status-row strong[data-status]')
+  await expect(trackingStatus).toBeVisible({ timeout: 30_000 })
+  await expect(page.locator('.status-row strong[data-status="CONFIRMADA"]')).toHaveText(
+    'Confirmada',
+    {
+      timeout: 90_000,
+    },
+  )
   await expect(page.getByText(/consultando API/)).toHaveCount(0)
   await expect(page.getByRole('heading', { name: 'Eventos' })).toBeVisible()
 }
@@ -169,9 +174,12 @@ for (const viewport of [
     await expect(page.getByRole('heading', { name: 'Resultado e auditoria' })).toBeVisible({
       timeout: 30_000,
     })
-    await expect(page.locator('[data-status="CONFIRMADA"]')).toHaveText('Confirmada', {
-      timeout: 90_000,
-    })
+    await expect(page.locator('.status-row strong[data-status="CONFIRMADA"]')).toHaveText(
+      'Confirmada',
+      {
+        timeout: 90_000,
+      },
+    )
     await expect(page.getByRole('heading', { name: 'Eventos' })).toBeVisible()
     await expect(page.locator('.timeline li').first()).toBeVisible({ timeout: 30_000 })
     await assertNoAxeViolations(page, `status+auditoria (${viewport.name})`)

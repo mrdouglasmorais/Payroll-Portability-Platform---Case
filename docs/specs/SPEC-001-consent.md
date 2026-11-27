@@ -1,6 +1,6 @@
 # SPEC-001-consent
 
-Status: Proposed
+Status: Accepted
 
 Source mapping: RF1. Identifiers assigned locally, not in original challenge.
 

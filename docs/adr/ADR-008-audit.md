@@ -1,6 +1,6 @@
 # ADR-008: audit
 
-Status: Proposed
+Status: Accepted
 
 ## Context
 Technical challenge requires a maintainable, auditable simulated financial workflow.
