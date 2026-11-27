@@ -1,6 +1,6 @@
 # Acceptance gates
 
-Status: **DONE** for functional gates on tip that includes AI-024 docs alignment + compose-smoke fix, with **honest CI caveat**: previous tip `bef4234` Actions [run 45940063545](https://github.com/mrdouglasmorais/Payroll-Portability-Platform---Case/actions/runs/45940063545) **FAIL** (`compose-smoke`). Last known full SUCCESS 8/8 remains `d0dcbbc` ([run 45740557504](https://github.com/mrdouglasmorais/Payroll-Portability-Platform---Case/actions/runs/45740557504)). Do not claim remote CI green until a new green run on the tip.
+Status: **DONE** for functional gates on tip `85427bb` (AI-024 docs alignment + compose-smoke fix), with **honest CI caveat**: previous tip `bef4234` Actions [run 45940063545](https://github.com/mrdouglasmorais/Payroll-Portability-Platform---Case/actions/runs/45940063545) **FAIL** (`compose-smoke`). Last known full SUCCESS 8/8 remains `d0dcbbc` ([run 45740557504](https://github.com/mrdouglasmorais/Payroll-Portability-Platform---Case/actions/runs/45740557504)). Do not claim remote CI green until a new green run on `85427bb` (or successor).
 
 - [x] Consent and scoped agenda, valid installment selection and destination.  
   Evidence: Playwright operator flow; dual-stack authorize/agenda

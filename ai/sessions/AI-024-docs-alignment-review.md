@@ -39,7 +39,7 @@ bef4234058efa54bc282b7f416ba0e2e4c9b2d2b 2026-11-26 15:09:37 -0300
 
 ## Validation
 
-Docs alinhados. Fix e2e/contraste incluído neste commit. Playwright/CI re-run: NOT_RUN até push + Actions.
+Docs alinhados. Fix e2e/contraste no tip `85427bb`. Playwright/CI re-run: NOT_RUN até push + Actions.
 
 ## Human review / decision
 

@@ -10,7 +10,7 @@ PDF divergences: [architecture/contract-divergences.md](architecture/contract-di
 
 | Kind | Reference |
 |---|---|
-| Published tip (código) | _(este pacote AI-024 + fix compose-smoke — SHA preenchido após commit)_ |
+| Published tip (código) | `85427bb28951f6800cfd09c2f47d11c74b4eb884` |
 | Remote CI on tip | Pendente Actions após push. Tip anterior `bef4234` [run 45940063545](https://github.com/mrdouglasmorais/Payroll-Portability-Platform---Case/actions/runs/45940063545) **FAIL** (`compose-smoke`). Este tip inclui locator scoped + contraste `#9a5500`. **Não** declarar CI verde até Actions verde. |
 | Last known green CI tip | `d0dcbbc4f54b315e1f59008f87b81d4781c2c5d6` — [run 45740557504](https://github.com/mrdouglasmorais/Payroll-Portability-Platform---Case/actions/runs/45740557504) SUCCESS 8/8 |
 | Sessions | `ai/sessions/AI-000` … `AI-024` |

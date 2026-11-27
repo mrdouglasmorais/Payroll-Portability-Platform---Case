@@ -255,8 +255,8 @@ O desafio pede uso auditável de IA. Skills em `.agents/skills/`; evidências em
 
 | Campo | Valor |
 | --- | --- |
-| SHA (tip) | _(preenchido após commit — ver `git rev-parse HEAD`)_ |
-| CI no tip | Pendente Actions após push deste pacote (docs alignment + fix e2e/contraste). Tip anterior `bef4234` [FAIL compose-smoke](https://github.com/mrdouglasmorais/Payroll-Portability-Platform---Case/actions/runs/45940063545). |
+| SHA (tip) | `85427bb28951f6800cfd09c2f47d11c74b4eb884` |
+| CI no tip | Pendente Actions após push (docs alignment + fix e2e/contraste). Tip anterior `bef4234` [FAIL compose-smoke](https://github.com/mrdouglasmorais/Payroll-Portability-Platform---Case/actions/runs/45940063545). |
 | Última CI verde conhecida | `d0dcbbc4f54b315e1f59008f87b81d4781c2c5d6` — [SUCCESS 8/8](https://github.com/mrdouglasmorais/Payroll-Portability-Platform---Case/actions/runs/45740557504) |
 
 Não declare CI verde para commits ainda não publicados **nem** para tip com Actions vermelho.
